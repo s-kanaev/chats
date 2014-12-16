@@ -53,8 +53,9 @@ void Server::ConnectionAcceptor(const boost::system::error_code ec)
               << m_remote->address().to_string()
               << " port: "
               << m_remote->port() << std::endl;
-    // maybe any authentication procedure should take place?
+    // FIXME: maybe any authentication procedure should take place?
 
+    m_connected = true;
     // start async read from socket
     m_remote_socket->async_receive(boost::asio::buffer(m_recv_buffer),
                                    0, // FIXME: flags
@@ -67,29 +68,30 @@ void Server::RecvMessage(const boost::system::error_code &error, std::size_t byt
 {
     boost::unique_lock<boost::mutex> scoped(m_socket_rw_mutex);
 
-    char *b = m_recv_buffer;
-    std::size_t l;
+    if (error.value() == 0) {
+        char *b = m_recv_buffer;
+        std::size_t l;
 
-    m_recv_message.clear();
-    m_recv_message.push_back(b);
-
-    l = strlen(b);
-    m_length_available = l;
-    while (l + 1 < bytes_transferred) {
-        ++l;
-        b += l;
+        m_recv_message.clear();
         m_recv_message.push_back(b);
-        std::size_t _l = strlen(b);
-        l += _l;
-        m_length_available += _l;
+
+        l = strlen(b);
+        m_length_available = l;
+        while (l + 1 < bytes_transferred) {
+            ++l;
+            b += l;
+            m_recv_message.push_back(b);
+            std::size_t _l = strlen(b);
+            l += _l;
+            m_length_available += _l;
+        }
+
+        // notify external api
+        boost::unique_lock<boost::mutex> l(*m_data_ready_notify_flag_mutex);
+        m_data_ready_notify_flag = true;
+        l.unlock();
+        m_data_ready_notify_cv->notify_all();
     }
-
-    // notify external api
-    boost::unique_lock<boost::mutex> l(*m_data_ready_notify_flag_mutex);
-    m_data_ready_notify_flag = true;
-    l.unlock();
-    m_data_ready_notify_cv->notify_all();
-
     // start async read from socket
     m_remote_socket->async_receive(boost::asio::buffer(m_recv_buffer),
                                    0, // FIXME: flags
@@ -119,11 +121,35 @@ void Server::_SendMessage(boost::shared_ptr<boost::unique_lock<boost::mutex> > l
                           const boost::system::error_code &error,
                           std::size_t bytes_transferred)
 {
-    m_bytes_to_transfer -= bytes_transferred;
-    if (m_bytes_to_transfer < 0) m_bytes_to_transfer = 0;
+    if (error.value() == 0) {
+        m_bytes_to_transfer -= bytes_transferred;
+        if (m_bytes_to_transfer < 0) m_bytes_to_transfer = 0;
 
-    if (m_bytes_to_transfer == 0) {
+        if (m_bytes_to_transfer == 0) {
+            lock->unlock();
+            lock.reset();
+        }
+    } else {
+        // some error handling
         lock->unlock();
         lock.reset();
     }
+}
+
+void Server::IsConnected() const
+{
+    return m_connected;
+}
+
+bool Server::GetMessage(std::vector<std::string> &_msg) const
+{
+    boost::unique_lock<boost::mutex> lock(m_socket_rw_mutex);
+
+    _msg.clear();
+    _msg.assign(m_recv_message.begin(), m_recv_message.end());
+}
+
+void Server::Shutdown()
+{
+    m_remote_socket->close();
 }

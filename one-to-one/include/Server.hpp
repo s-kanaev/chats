@@ -56,7 +56,7 @@ public:
      * return true if data was available
      * return = !!m_length_available
      */
-    bool GetMessage(std::string &_msg);
+    bool GetMessage(std::vector<std::string> &_msg) const;
 
     /*
      * check whether a server has got a connection
