@@ -13,13 +13,13 @@ Server::Server(boost::shared_ptr<boost::asio::io_service> _io_service,
                bool *_message_received_flag,
                std::size_t _port) :
     m_connected(false),
-    m_data_ready(false),
+    m_length_available(0),
     m_io_service(_io_service),
     m_data_ready_notify_cv(_message_received_cv),
     m_data_ready_notify_flag(_message_received_flag),
     m_data_ready_notify_flag_mutex(_flag_mutex)
 {
-    boost::unique_lock<boost::mutex> lock(m_data_ready_notify_flag_mutex);
+    boost::unique_lock<boost::mutex> lock(*m_data_ready_notify_flag_mutex);
     *m_data_ready_notify_flag = false;
     lock.unlock();
 
@@ -87,9 +87,9 @@ void Server::RecvMessage(const boost::system::error_code &error, std::size_t byt
         }
 
         // notify external api
-        boost::unique_lock<boost::mutex> l(*m_data_ready_notify_flag_mutex);
-        m_data_ready_notify_flag = true;
-        l.unlock();
+        boost::unique_lock<boost::mutex> lock(*m_data_ready_notify_flag_mutex);
+        *m_data_ready_notify_flag = true;
+        lock.unlock();
         m_data_ready_notify_cv->notify_all();
     }
     // start async read from socket
@@ -103,10 +103,11 @@ void Server::RecvMessage(const boost::system::error_code &error, std::size_t byt
 void Server::SendMessage(std::string _msg)
 {
     // send _msg asynchronously
-    boost::shared_ptr<boost::unique_lock<boost::mutex> > l(m_socket_rw_mutex);
+    boost::shared_ptr<boost::unique_lock<boost::mutex> > l(
+                new boost::unique_lock<boost::mutex>(m_socket_rw_mutex));
 
     m_send_buffer.reset(new char[_msg.length()]);
-    memcpy(m_send_buffer.get(), _msg.c_str());
+    memcpy(m_send_buffer.get(), _msg.c_str(), _msg.length());
     m_bytes_to_transfer = _msg.length();
 
     m_remote_socket->async_send(boost::asio::buffer(m_send_buffer.get(), _msg.length()),
@@ -136,7 +137,7 @@ void Server::_SendMessage(boost::shared_ptr<boost::unique_lock<boost::mutex> > l
     }
 }
 
-void Server::IsConnected() const
+bool Server::IsConnected() const
 {
     return m_connected;
 }

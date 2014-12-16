@@ -39,3 +39,7 @@
  *  moreover, every event handler will have its own thread for
  *  all of them to run simultaneously
  */
+int main(void)
+{
+    return 0;
+}

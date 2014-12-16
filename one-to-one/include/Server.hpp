@@ -103,7 +103,7 @@ protected:
     /*
      * mutex to use on read/write from/to m_remote_socket
      */
-    boost::mutex m_socket_rw_mutex;
+    mutable boost::mutex m_socket_rw_mutex;
 
     /*
      * buffer for received message (used by async_receive)
