@@ -69,10 +69,12 @@ public:
 
     /*!
      * \brief Callback to use when there is any message to send
+     * should call to async_send
      */
-    virtual void Sender() {
+    virtual
+    void Sender();/* {
         // implementation dependent? // TCP/UDP dependent?
-    }
+    }*/
 
 protected:
     /// received message queue
