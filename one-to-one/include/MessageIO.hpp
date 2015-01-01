@@ -11,17 +11,37 @@
 #include <queue>
 #include <memory>
 
-/// message i/o operation interface class for
+/*!
+ * \brief The MessageIO is message i/o operation interface class
+ * General route is like:
+ * - user create ServerTCP/UDP or ClientTCP/UDP
+ *      neither MessageIOTCP/MessageIOUDP nor a MessageIO directly
+ * - connect to/listen for connection
+ * - call to StartReceiver() to start receiving messages
+ * - call to SendMsg when user wants to send message
+ *
+ * Derivatives from this class should implement _Sender and _StartReceiver methods
+ * and maybe _MsgReceived method
+ */
 class MessageIO {
 public:
+    /*!
+     * \brief MessageIO constructor
+     * \param _app_cv conditional to notify user about message received with
+     */
+    MessageIO(boost::weak_ptr<boost::condition_variable> _app_cv) :
+        m_app_cv(_app_cv)
+    {
+    }
+
     /*!
      * \brief callback for network part whenever it receives message
      * actually it is async_receive callback
      */
     virtual
-    void MsgReceived(const boost::system::error_code& e,
+    void _MsgReceived(const boost::system::error_code& e,
                      std::size_t bytes,
-                     MessagePtr _msg);/* {
+                     MessagePtr _msg) {
         // lock received message queue
         boost::unique_lock<boost::mutex> _l(m_recv_queue_mutex);
         // enqueue received message
@@ -32,7 +52,23 @@ public:
         if (auto _cv = m_app_cv.lock()) {
             _cv->notify_all();
         }
-    }*/
+        _StartReceiver();
+    }
+
+    /*!
+     * \brief API to start receiving messages
+     */
+    void StartReceiver()
+    {
+        _StartReceiver();
+    }
+
+    /*!
+     * \brief actual receiver start function
+     */
+    virtual
+    void _StartReceiver();
+
 
     /*!
      * \brief API for application to receive messages on notification
@@ -57,14 +93,8 @@ public:
      * \brief API for application to asynchronously send message
      */
     void SendMsg(MessagePtr _msg) {
-        // lock send message queue
-        boost::unique_lock<boost::mutex> _l(m_send_queue_mutex);
-        // queue message to send
-        m_send_queue.push(_msg);
-        // unlock send message queue
-        _l.unlock();
-        // call to Sender method (FIXME: asynchronously)
-        Sender();
+        // call to Sender method
+        Sender(_msg);
     }
 
     /*!
@@ -72,20 +102,14 @@ public:
      * should call to async_send
      */
     virtual
-    void Sender();/* {
-        // implementation dependent? // TCP/UDP dependent?
-    }*/
+    void _Sender(MessagePtr _msg);
 
 protected:
     /// received message queue
     std::queue<MessagePtr> m_recv_queue;
-    /// send message queue
-    std::queue<MessagePtr> m_send_queue;
 
     /// received message queue mutex
     boost::mutex m_recv_queue_mutex;
-    /// send message queue mutex
-    boost::mutex m_send_queue_mutex;
 
     /// link to notification variable to notify
     /// application with when some message is received
@@ -94,10 +118,53 @@ private:
 };
 
 /// message i/o operation interface class for tcp
-class MessageIOTcp : public MessageIO {
+/// derivative should implement m_socket setup
+class MessageIOTcp : virtual public MessageIO {
 public:
-    virtual void Sender() {
+    MessageIOTCP(boost::weak_ptr<boost::condition_variable> _app_cv,
+                 boost::asio::io_service &_io_service) :
+        MessageIO(_app_cv),
+        m_socket(_io_service)
+    {
+    }
 
+    /*!
+     * \brief API to start receiving messages
+     * create a buffer and call to async_receive
+     */
+    virtual
+    void _StartReceiver()
+    {
+        boost::asio::socket_base::receive_buffer_size _size;
+        m_socket.get_option(_size);
+        MessagePtr _msg(new Message);
+        _msg->msg.reset(new char[_size.value()]);
+        _msg->length = _size.value();
+        m_socket.async_receive(boost::asio::buffer(_msg->msg, _msg->length),
+                               0, //flags
+                               boost::bind(&MessageIOTCP::_MsgReceived,
+                                           this,
+                                           _1, _2, _msg));
+    }
+
+    /*!
+     * \brief callback for async_send
+     * \param error
+     * \param bytes_writen
+     * \param _msg
+     */
+    void _MsgSent(const boost::system::error_code &error,
+                std::size_t bytes_writen,
+                MessagePtr _msg) {
+        /// do smth, especialy on error
+    }
+
+    /// will call to async_send of the socket
+    void _Sender(MessagePtr _msg) {
+        m_socket.async_send(boost::asio::buffer(_msg->msg.get(), _msg->length),
+                            0,
+                            boost::bind(&MessageIOTcp::OnSend,
+                                        this, _1, _2, _msg));
     }
 
 protected:
@@ -105,5 +172,68 @@ protected:
     boost::asio::ip::tcp::socket m_socket;
 };
 
+/// message i/o operation class for udp
+/// Derivative should put setup for m_socket and m_remote
+class MessageIOUDP : virtual public MessageIO {
+public:
+    MessageIOUDP(boost::weak_ptr<boost::condition_variable> _app_cv,
+                 boost::asio::io_service &_io_service) :
+        MessageIO(_app_cv),
+        m_socket(_io_service)
+    {
+    }
+
+    /*!
+     * \brief API to start receiving messages
+     */
+    virtual
+    void _StartReceiver()
+    {
+        boost::asio::socket_base::receive_buffer_size _size;
+        m_socket.get_option(_size);
+        MessagePtr _msg(new Message);
+        _msg->msg.reset(new char[_size.value()]);
+        _msg->length = _size.value();
+        m_socket.async_receive_from(boost::asio::buffer(_msg->msg, _msg->length),
+                                    m_remote,
+                                    0, //flags
+                                    boost::bind(&MessageIOUDP::_MsgReceived,
+                                                this,
+                                                _1, _2, _msg));
+    }
+
+    /*!
+     * \brief callback for async_send
+     * \param error
+     * \param bytes_writen
+     * \param _msg
+     */
+    void _MsgSent(const boost::system::error_code &error,
+                std::size_t bytes_writen,
+                MessagePtr _msg) {
+        /// do smth, especialy on error
+    }
+
+    /*!
+     * \brief Callback to use when there is any message to send
+     * should call to async_send
+     */
+    virtual
+    void _Sender(MessagePtr _msg)
+    {
+        m_socket.async_send_to(boost::asio::buffer(_msg, _msg->length),
+                               m_remote,
+                               0, // flags
+                               boost::bind(&MessageIOUDP::_MsgSent,
+                                           this,
+                                           _1, _2, _msg));
+    }
+
+protected:
+    /// socket to send and receive data with
+    boost::asio::ip::udp::socket m_socket;
+    /// remote endpoint to talk with
+    boost::asio::ip::udp::endpoint m_remote;
+};
 
 #endif // MESSAGEIO_HPP
