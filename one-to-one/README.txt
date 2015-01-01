@@ -22,11 +22,12 @@ typedef struct _Message {
 The Message object is an object of message i/o operations with interface like:
 
 ---- snip ----
+// _MethodName - is used for internals, others - for externals
 class MessageIO {
     /*!
         Callback for network part when it receives any message
      */
-    MsgReceived() {
+    _MsgReceived() {
         lock received message queue
         enqueue received message
         unlock the queue
@@ -51,13 +52,13 @@ class MessageIO {
         lock send message queue
         queue message to send
         unlock send message queue
-        call to Sender method
+        call to _Sender method
     }
 
     /*!
         Callback to use when there is any message to send
      */
-    Sender() {
+    _Sender() {
         implementation dependent? // TCP/UDP dependent?
     }
 }
@@ -65,5 +66,5 @@ class MessageIO {
 
 MessageIO has data like:
     - received message queue,
-    - send message queue,
+    - send message queue, (no need for this queue, if messsage is sent immidiately)
     - link to notification variable to notify application with
