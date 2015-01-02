@@ -35,40 +35,12 @@ public:
     }
 
     /*!
-     * \brief callback for network part whenever it receives message
-     * actually it is async_receive callback
-     */
-    virtual
-    void _MsgReceived(const boost::system::error_code& e,
-                     std::size_t bytes,
-                     MessagePtr _msg) {
-        // lock received message queue
-        boost::unique_lock<boost::mutex> _l(m_recv_queue_mutex);
-        // enqueue received message
-        m_recv_queue.push(_msg);
-        // unlock the queue
-        _l.unlock();
-        // notify connected receiver (application)
-        if (auto _cv = m_app_cv.lock()) {
-            _cv->notify_all();
-        }
-        _StartReceiver();
-    }
-
-    /*!
      * \brief API to start receiving messages
      */
     void StartReceiver()
     {
         _StartReceiver();
     }
-
-    /*!
-     * \brief actual receiver start function
-     */
-    virtual
-    void _StartReceiver();
-
 
     /*!
      * \brief API for application to receive messages on notification
@@ -97,6 +69,35 @@ public:
         Sender(_msg);
     }
 
+protected:
+    /********** functions **************/
+    /*!
+     * \brief callback for network part whenever it receives message
+     * actually it is async_receive callback
+     */
+    virtual
+    void _MsgReceived(const boost::system::error_code& e,
+                     std::size_t bytes,
+                     MessagePtr _msg) {
+        // lock received message queue
+        boost::unique_lock<boost::mutex> _l(m_recv_queue_mutex);
+        // enqueue received message
+        m_recv_queue.push(_msg);
+        // unlock the queue
+        _l.unlock();
+        // notify connected receiver (application)
+        if (auto _cv = m_app_cv.lock()) {
+            _cv->notify_all();
+        }
+        _StartReceiver();
+    }
+
+    /*!
+     * \brief actual receiver start function
+     */
+    virtual
+    void _StartReceiver();
+
     /*!
      * \brief Callback to use when there is any message to send
      * should call to async_send
@@ -104,7 +105,7 @@ public:
     virtual
     void _Sender(MessagePtr _msg);
 
-protected:
+    /*********** variables ***************/
     /// received message queue
     std::queue<MessagePtr> m_recv_queue;
 
