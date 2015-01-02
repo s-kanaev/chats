@@ -10,7 +10,7 @@
 #include <boost/asio.hpp>
 
 /*!
- * \brief The ServerTCP class is one-to-one tcp implementation of server
+ * \brief The Server class is one-to-one tcp implementation of server
  * route:
  *  - listen to connections
  *  - authorize (exchange data) (?)
