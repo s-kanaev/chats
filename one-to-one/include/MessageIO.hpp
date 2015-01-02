@@ -129,6 +129,8 @@ public:
     {
     }
 
+protected:
+    /*********** functions *************/
     /*!
      * \brief API to start receiving messages
      * create a buffer and call to async_receive
@@ -168,7 +170,7 @@ public:
                                         this, _1, _2, _msg));
     }
 
-protected:
+    /*********** variables *************/
     /// socket to send and receive data with
     boost::asio::ip::tcp::socket m_socket;
 };
@@ -184,6 +186,8 @@ public:
     {
     }
 
+protected:
+    /********** functions ***********/
     /*!
      * \brief API to start receiving messages
      */
@@ -230,7 +234,7 @@ public:
                                            _1, _2, _msg));
     }
 
-protected:
+    /********** variables ***********/
     /// socket to send and receive data with
     boost::asio::ip::udp::socket m_socket;
     /// remote endpoint to talk with
