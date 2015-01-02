@@ -39,6 +39,12 @@ public:
      * \brief used to decline connection
      */
     void Disconnect();
+
+    /*!
+     * \brief API for application to asynchronously send message
+     * (should check if server is connected)
+     */
+    void SendMsg(MessagePtr _msg);
 protected:
     /// conditional to notify user about next connection with
     boost::weak_ptr<boost::condition_variable> m_connection_cv;

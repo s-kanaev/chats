@@ -37,6 +37,7 @@ public:
     /*!
      * \brief API to start receiving messages
      */
+    virtual
     void StartReceiver()
     {
         _StartReceiver();
@@ -64,9 +65,10 @@ public:
     /*!
      * \brief API for application to asynchronously send message
      */
+    virtual
     void SendMsg(MessagePtr _msg) {
-        // call to Sender method
-        Sender(_msg);
+        // call to _Sender method
+        _Sender(_msg);
     }
 
 protected:
@@ -77,8 +79,8 @@ protected:
      */
     virtual
     void _MsgReceived(const boost::system::error_code& e,
-                     std::size_t bytes,
-                     MessagePtr _msg) {
+                      std::size_t bytes,
+                      MessagePtr _msg) {
         // lock received message queue
         boost::unique_lock<boost::mutex> _l(m_recv_queue_mutex);
         // enqueue received message
