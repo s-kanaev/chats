@@ -107,7 +107,7 @@ public:
     /*!
      * \brief API to start receiving messages
      */
-    void StartReceiver();
+    bool StartReceiver();
 
 protected:
     void _ShutdownSocket();
