@@ -20,8 +20,8 @@
  * - call to StartReceiver() to start receiving messages
  * - call to SendMsg when user wants to send message
  *
- * Derivatives from this class should implement _Sender and _StartReceiver methods
- * and maybe _MsgReceived method
+ * Direct derivatives from this class should implement _Sender and
+ * _StartReceiver methods and maybe _MsgReceived method
  */
 class MessageIO {
 public:
@@ -36,16 +36,19 @@ public:
 
     /*!
      * \brief API to start receiving messages
+     * \return if receiving is started -> true, otherwise -> false
+     * (default implementation)
      */
     virtual
-    void StartReceiver()
+    bool StartReceiver()
     {
-        _StartReceiver();
+        return _StartReceiver();
     }
 
     /*!
      * \brief API for application to receive messages on notification
      * lets to know whether there are any more messages left
+     * (default implementation)
      */
     MessagePtr GetMsg() {
         // lock received message queue
@@ -64,6 +67,7 @@ public:
 
     /*!
      * \brief API for application to asynchronously send message
+     * (default implementation)
      */
     virtual
     void SendMsg(MessagePtr _msg) {
@@ -76,6 +80,7 @@ protected:
     /*!
      * \brief callback for network part whenever it receives message
      * actually it is async_receive callback
+     * (default implementation)
      */
     virtual
     void _MsgReceived(const boost::system::error_code& e,
@@ -98,7 +103,7 @@ protected:
      * \brief actual receiver start function
      */
     virtual
-    void _StartReceiver();
+    bool _StartReceiver();
 
     /*!
      * \brief Callback to use when there is any message to send
@@ -122,12 +127,13 @@ private:
 
 /// message i/o operation interface class for tcp
 /// derivative should implement m_socket setup
-class MessageIOTcp : virtual public MessageIO {
+class MessageIOTCP : virtual public MessageIO {
 public:
     MessageIOTCP(boost::weak_ptr<boost::condition_variable> _app_cv,
-                 boost::asio::io_service &_io_service) :
+                 boost::shared_ptr<boost::asio::io_service> &_io_service) :
         MessageIO(_app_cv),
-        m_socket(_io_service)
+        m_io_service(_io_service),
+        m_socket(*_io_service)
     {
     }
 
@@ -138,7 +144,7 @@ protected:
      * create a buffer and call to async_receive
      */
     virtual
-    void _StartReceiver()
+    bool _StartReceiver()
     {
         boost::asio::socket_base::receive_buffer_size _size;
         m_socket.get_option(_size);
@@ -150,6 +156,7 @@ protected:
                                boost::bind(&MessageIOTCP::_MsgReceived,
                                            this,
                                            _1, _2, _msg));
+        return true;
     }
 
     /*!
@@ -173,6 +180,8 @@ protected:
     }
 
     /*********** variables *************/
+    /// io_service pointer
+    boost::shared_ptr<boost::asio::io_service> m_io_service;
     /// socket to send and receive data with
     boost::asio::ip::tcp::socket m_socket;
 };
@@ -182,9 +191,10 @@ protected:
 class MessageIOUDP : virtual public MessageIO {
 public:
     MessageIOUDP(boost::weak_ptr<boost::condition_variable> _app_cv,
-                 boost::asio::io_service &_io_service) :
+                 boost::shared_ptr<boost::asio::io_service> &_io_service) :
         MessageIO(_app_cv),
-        m_socket(_io_service)
+        m_io_service(_io_service),
+        m_socket(*_io_service)
     {
     }
 
@@ -194,7 +204,7 @@ protected:
      * \brief API to start receiving messages
      */
     virtual
-    void _StartReceiver()
+    bool _StartReceiver()
     {
         boost::asio::socket_base::receive_buffer_size _size;
         m_socket.get_option(_size);
@@ -207,6 +217,7 @@ protected:
                                     boost::bind(&MessageIOUDP::_MsgReceived,
                                                 this,
                                                 _1, _2, _msg));
+        return true;
     }
 
     /*!
@@ -237,6 +248,8 @@ protected:
     }
 
     /********** variables ***********/
+    /// io_service pointer
+    boost::shared_ptr<boost::asio::io_service> m_io_service;
     /// socket to send and receive data with
     boost::asio::ip::udp::socket m_socket;
     /// remote endpoint to talk with
