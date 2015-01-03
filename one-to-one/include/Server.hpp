@@ -37,7 +37,7 @@ public:
      */
     void Listen(unsigned short _port);
     /*!
-     * \brief used to decline connection
+     * \brief used to decline connection (shutdown and close the socket)
      */
     void Disconnect();
 
