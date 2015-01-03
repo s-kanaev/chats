@@ -50,7 +50,7 @@ public:
     /*!
      * \brief API to start receiving messages
      */
-    void StartReceiver();
+    bool StartReceiver();
 
 protected:
     /********** functions ************/
@@ -79,6 +79,44 @@ protected:
  *  - exchange data
  */
 class ClientUDP : virtual public MessageIOUDP {
+public:
+    /*!
+     * \brief ClientUDP constructor
+     * \param _app_cv conditional to notify user about new message with
+     * \param _io_service io_service to use
+     * \param _connection_cv conditional to notify user about connection with
+     */
+    ClientUDP(boost::weak_ptr<boost::condition_variable> _app_cv,
+              boost::shared_ptr<boost::asio::io_service> &_io_service,
+              boost::weak_ptr<boost::condition_variable> _connection_cv);
+
+    /*!
+     * \brief set remote to talk with
+     * \param _address address to talk
+     * \param _port port to talk
+     */
+    void SetRemote(std::string _address,
+                   unsigned short _port);
+
+    /*!
+     * \brief API for application to asynchronously send message
+     * (should check if connected)
+     */
+    void SendMsg(MessagePtr _msg);
+
+    /*!
+     * \brief API to start receiving messages
+     */
+    void StartReceiver();
+
+protected:
+    void _ShutdownSocket();
+
+    /// io_service
+    boost::shared_ptr<boost::asio::io_service> m_io_service;
+    /// remote to talk with is m_remote from MessageIOUDP
+    /// flags if remote is set (false by default)
+    bool m_remote_set = false;
 };
 
 #endif // CLIENT_HPP

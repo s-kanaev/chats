@@ -62,7 +62,7 @@ bool
 ClientTCP::StartReceiver()
 {
     if (!m_connected) return false;
-    _ParentClass::StartReceiver();
+    return _ParentClass::StartReceiver();
 }
 
 void
@@ -75,3 +75,47 @@ ClientTCP::SendMsg(MessagePtr _msg)
 /************* UDP client class implementation **************/
 #undef _ParentClass
 #define _ParentClass MessageIOUDP
+
+ClientUDP::ClientUDP(boost::weak_ptr<boost::condition_variable> _app_cv,
+                     boost::shared_ptr<boost::asio::io_service> &_io_service,
+                     boost::weak_ptr<boost::condition_variable> _connection_cv) :
+    _ParentClass(_app_cv, _io_service),
+    m_io_service(_io_service)
+{
+}
+
+void
+ClientUDP::_ShutdownSocket()
+{
+    m_socket.shutdown(boost::asio::ip::udp::socket::shutdown_both);
+    m_socket.close();
+}
+
+void
+ClientUDP::SetRemote(std::string _address, unsigned short _port)
+{
+    if (m_remote_set) {
+        _ShutdownSocket();
+    }
+
+    boost::asio::ip::tcp::resolver _r(*m_io_service);
+    boost::asio::ip::tcp::resolver::query _q(_address, std::to_string(_port));
+    boost::asio::ip::tcp::resolver::iterator _it = _r.resolve(_q);
+
+    m_remote = _it->endpoint();
+
+    m_remote_set = true;
+}
+
+bool ClientUDP::StartReceiver()
+{
+    if (!m_remote_set) return false;
+    return _ParentClass::StartReceiver();
+}
+
+void
+ClientUDP::SendMsg(MessagePtr _msg)
+{
+    if (!m_remote_set) return;
+    _ParentClass::SendMsg(_msg);
+}
