@@ -46,6 +46,13 @@ public:
      * (should check if server is connected)
      */
     void SendMsg(MessagePtr _msg);
+
+    /*!
+     * \brief API to start receiving messages
+     * \return if receiving is started -> true, otherwise -> false
+     */
+    bool StartReceiver();
+
 protected:
     /*!
      * \brief callback for async_connect

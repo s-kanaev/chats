@@ -2,12 +2,14 @@
 #define MESSAGEIO_HPP
 
 #include "Message.hpp"
+#include <boost/bind.hpp>
 #include <boost/asio.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/thread/condition_variable.hpp>
 #include <boost/thread/mutex.hpp>
 #include <boost/thread/locks.hpp>
 #include <boost/weak_ptr.hpp>
+#include <cstddef>
 #include <queue>
 #include <memory>
 
@@ -151,7 +153,7 @@ protected:
         MessagePtr _msg(new Message);
         _msg->msg.reset(new char[_size.value()]);
         _msg->length = _size.value();
-        m_socket.async_receive(boost::asio::buffer(_msg->msg, _msg->length),
+        m_socket.async_receive(boost::asio::buffer(_msg->msg.get(), _msg->length),
                                0, //flags
                                boost::bind(&MessageIOTCP::_MsgReceived,
                                            this,
@@ -175,7 +177,7 @@ protected:
     void _Sender(MessagePtr _msg) {
         m_socket.async_send(boost::asio::buffer(_msg->msg.get(), _msg->length),
                             0,
-                            boost::bind(&MessageIOTcp::OnSend,
+                            boost::bind(&MessageIOTCP::_MsgSent,
                                         this, _1, _2, _msg));
     }
 
@@ -211,7 +213,7 @@ protected:
         MessagePtr _msg(new Message);
         _msg->msg.reset(new char[_size.value()]);
         _msg->length = _size.value();
-        m_socket.async_receive_from(boost::asio::buffer(_msg->msg, _msg->length),
+        m_socket.async_receive_from(boost::asio::buffer(_msg->msg.get(), _msg->length),
                                     m_remote,
                                     0, //flags
                                     boost::bind(&MessageIOUDP::_MsgReceived,
@@ -239,7 +241,7 @@ protected:
     virtual
     void _Sender(MessagePtr _msg)
     {
-        m_socket.async_send_to(boost::asio::buffer(_msg, _msg->length),
+        m_socket.async_send_to(boost::asio::buffer(_msg->msg.get(), _msg->length),
                                m_remote,
                                0, // flags
                                boost::bind(&MessageIOUDP::_MsgSent,

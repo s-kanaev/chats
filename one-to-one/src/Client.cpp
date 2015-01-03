@@ -10,7 +10,8 @@
 ClientTCP::ClientTCP(boost::weak_ptr<boost::condition_variable> _app_cv,
                      boost::shared_ptr<boost::asio::io_service> &_io_service,
                      boost::weak_ptr<boost::condition_variable> _connection_cv) :
-    MessageIOTCP(_app_cv, _io_service),
+    MessageIO(_app_cv),
+    _ParentClass(_app_cv, _io_service),
     m_connection_cv(_connection_cv),
     m_io_service(_io_service)
 {
@@ -29,7 +30,7 @@ ClientTCP::Connect(std::string _addr, unsigned short _port)
     boost::asio::ip::tcp::resolver::query _q(_addr, std::to_string(_port));
     boost::asio::ip::tcp::resolver::iterator _it = _r.resolve(_q);
 
-    m_remote_ep = *it;
+    m_remote_ep = *_it;
 
     m_socket.async_connect(m_remote_ep,
                            boost::bind(&ClientTCP::_OnConnect,
@@ -79,6 +80,7 @@ ClientTCP::SendMsg(MessagePtr _msg)
 ClientUDP::ClientUDP(boost::weak_ptr<boost::condition_variable> _app_cv,
                      boost::shared_ptr<boost::asio::io_service> &_io_service,
                      boost::weak_ptr<boost::condition_variable> _connection_cv) :
+    MessageIO(_app_cv),
     _ParentClass(_app_cv, _io_service),
     m_io_service(_io_service)
 {
@@ -98,9 +100,9 @@ ClientUDP::SetRemote(std::string _address, unsigned short _port)
         _ShutdownSocket();
     }
 
-    boost::asio::ip::tcp::resolver _r(*m_io_service);
-    boost::asio::ip::tcp::resolver::query _q(_address, std::to_string(_port));
-    boost::asio::ip::tcp::resolver::iterator _it = _r.resolve(_q);
+    boost::asio::ip::udp::resolver _r(*m_io_service);
+    boost::asio::ip::udp::resolver::query _q(_address, std::to_string(_port));
+    boost::asio::ip::udp::resolver::iterator _it = _r.resolve(_q);
 
     m_remote = _it->endpoint();
 
