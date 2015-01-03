@@ -18,17 +18,17 @@
  *       or decline next connection (call to Disconnect)
  *  - do data exchange
  */
-class Server : virtual public MessageIOTcp {
+class Server : virtual public MessageIOTCP {
 public:
     /*!
-     * \brief ServerTCP constructor
+     * \brief Server constructor
      * \param _app_cv conditional to notify user about received message with
      * \param _io_service boost::asio::io_service to use
      * \param _connection_cv  conditional to notify user about next connection coming with
      */
-    ServerTCP(boost::weak_ptr<boost::condition_variable> _app_cv,
-              boost::asio::io_service &_io_service,
-              boost::weak_ptr<boost::condition_variable> _connection_cv);
+    Server(boost::weak_ptr<boost::condition_variable> _app_cv,
+           boost::shared_ptr<boost::asio::io_service> &_io_service,
+           boost::weak_ptr<boost::condition_variable> _connection_cv);
 
     /*!
      * \brief used to listen for next connection
