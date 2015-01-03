@@ -26,7 +26,7 @@ public:
      * \param _connection_cv conditional to notify user about connection with
      */
     ClientTCP(boost::weak_ptr<boost::condition_variable> _app_cv,
-              boost::asio::io_service &_io_service,
+              boost::shared_ptr<boost::asio::io_service> &_io_service,
               boost::weak_ptr<boost::condition_variable> _connection_cv);
 
     /*!
@@ -35,9 +35,9 @@ public:
      * \param _port port
      */
     void Connect(std::string _addr,
-                 std::string _port);
+                 unsigned short _port);
     /*!
-     * \brief disconnects
+     * \brief disconnects (shutdown and close the socket)
      */
     void Disconnect();
 
@@ -59,12 +59,15 @@ protected:
      * \param err
      * \param it
      */
-    void _OnConnect(const boost::system::error_code &err,
-                    boost::asio::ip::tcp::resolver::iterator it);
+    void _OnConnect(const boost::system::error_code &err);
 
     /********** variables ************/
     /// conditional to notify user about connection with
     boost::weak_ptr<boost::condition_variable> m_connection_cv;
+    /// remote endpoint to connect to
+    boost::asio::ip::tcp::endpoint m_remote_ep;
+    /// io_service
+    boost::shared_ptr<boost::asio::io_service> m_io_service;
     /// flags if is in connected or not
     bool m_connected = false;
 };
