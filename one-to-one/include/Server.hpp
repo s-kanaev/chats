@@ -32,9 +32,10 @@ public:
 
     /*!
      * \brief used to listen for next connection
+     * \param _port port to listen on
      * notifies user with m_connection_cv
      */
-    void Listen();
+    void Listen(unsigned short _port);
     /*!
      * \brief used to decline connection
      */
@@ -46,8 +47,18 @@ public:
      */
     void SendMsg(MessagePtr _msg);
 protected:
+    /*!
+     * \brief callback for async_connect
+     * \param err
+     */
+    void _OnConnection(const boost::system::error_code &err);
+
     /// conditional to notify user about next connection with
     boost::weak_ptr<boost::condition_variable> m_connection_cv;
+    /// endpoint to listen connections on
+    boost::asio::ip::tcp::endpoint m_listen_ep;
+    /// acceptor to accept connection
+    boost::asio::ip::tcp::acceptor m_connection_acceptor;
     /// flags whether the server is in connected state (false by default)
     bool m_connected = false;
 };
