@@ -61,6 +61,17 @@ class MessageIO {
     _Sender() {
         implementation dependent? // TCP/UDP dependent?
     }
+
+    /*!
+     * \brief API to start receiving messages
+     * \return if receiving is started -> true, otherwise -> false
+     * (default implementation)
+     */
+    virtual
+    bool StartReceiver()
+    {
+        return _StartReceiver();
+    }
 }
 ---- snip end ----
 
@@ -68,3 +79,29 @@ MessageIO has data like:
     - received message queue,
     - send message queue, (no need for this queue, if messsage is sent immidiately)
     - link to notification variable to notify application with
+
+Direct derivatives of MessageIO (like MessageIOTCP) should implement at least _Sender
+and _StartReceiver methods. Second-order derivatives of MessageIO (Server, ClientTCP,
+ClientUDP) should implement SendMsg and StartReceiver to check for connection state
+and should implement connection process. Moreover, neither of the above classes should
+know about protocol.
+
+Protocol should be implemented in Parser class. Parser class is finite state-machine.
+Protocol description:
+    // no authentication is provided within protocol
+    Message categories:
+        - message itself (a text to display)
+    Message format:
+    byte offset |   size (hex) |    meaning
+    0x00            0x01            message category:
+                                        'm' = message itself
+    0x01            ---             categorized message
+
+Category: Message itself ('m')
+    byte offset |   size (hex) |    meaning
+    0x01            0x10            nickname to talk with (zero-end string data, or 16 bytes)
+    0x11            0x200           message (zero-end string data)
+
+In general Parser has 2 states:
+    - incomplete message state (initial)
+    - complete message state
