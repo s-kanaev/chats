@@ -88,6 +88,7 @@ protected:
     void _MsgReceived(const boost::system::error_code& e,
                       std::size_t bytes,
                       MessagePtr _msg) {
+        _msg->length = bytes;
         // lock received message queue
         boost::unique_lock<boost::mutex> _l(m_recv_queue_mutex);
         // enqueue received message
@@ -175,6 +176,30 @@ protected:
 
     /// will call to async_send of the socket
     void _Sender(MessagePtr _msg) {
+        std::size_t offset = 0;
+        boost::asio::socket_base::send_buffer_size _size;
+        m_socket.get_option(_size);
+        std::size_t send_buffer_size = _size.value();
+
+        while (_msg->length > offset+send_buffer_size) {
+            MessagePtr _m;
+            _m.reset(new Message);
+            _m->length = send_buffer_size;
+
+            _m->msg.reset(new char[_m->length]);
+            memcpy(_m->msg.get(), _msg->msg.get()+offset, _m->length);
+            offset += _m->length;
+            m_socket.async_send(boost::asio::buffer(_m->msg.get(), _m->length),
+                                0,
+                                boost::bind(&MessageIOTCP::_MsgSent,
+                                            this, _1, _2, _m));
+        }
+
+        if (offset > 0) {
+            memmove(_msg->msg.get(), _msg->msg.get()+offset, _msg->length - offset);
+            _msg->length -= offset;
+        }
+
         m_socket.async_send(boost::asio::buffer(_msg->msg.get(), _msg->length),
                             0,
                             boost::bind(&MessageIOTCP::_MsgSent,
@@ -241,6 +266,33 @@ protected:
     virtual
     void _Sender(MessagePtr _msg)
     {
+        std::size_t offset = 0;
+        boost::asio::socket_base::send_buffer_size _size;
+        m_socket.get_option(_size);
+        std::size_t send_buffer_size = _size.value();
+
+        while (_msg->length > offset+send_buffer_size) {
+            MessagePtr _m;
+            _m.reset(new Message);
+            _m->length = send_buffer_size;
+
+            _m->msg.reset(new char[_m->length]);
+            memcpy(_m->msg.get(), _msg->msg.get()+offset, _m->length);
+            offset += _m->length;
+
+            m_socket.async_send_to(boost::asio::buffer(_m->msg.get(), _m->length),
+                                   m_remote,
+                                   0, // flags
+                                   boost::bind(&MessageIOUDP::_MsgSent,
+                                               this,
+                                               _1, _2, _msg));
+        }
+
+        if (offset > 0) {
+            memmove(_msg->msg.get(), _msg->msg.get()+offset, _msg->length - offset);
+            _msg->length -= offset;
+        }
+
         m_socket.async_send_to(boost::asio::buffer(_msg->msg.get(), _msg->length),
                                m_remote,
                                0, // flags
