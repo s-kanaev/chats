@@ -47,7 +47,7 @@ public:
     ParserState State() const;
 
     /// add message to process
-    void ParseMessage(const MessagePtr &) throw;
+    void ParseMessage(const MessagePtr &_msg);
 
     /// get message from parser
     ParsedMessagePtr GetParsed();
@@ -66,8 +66,7 @@ protected:
     } ParserSignal;
 
     /// descriptior of parser state
-    typedef struct _ParserStateDescriptor ParserStateDescriptor;
-    struct _ParserStateDescriptor {
+    typedef struct _ParserStateDescriptor {
         /*!
          * global state handler
          * input = current state, message to parse
@@ -76,7 +75,7 @@ protected:
         typedef ParserSignal (Parser::*ParserStateHandler)(ParserState,
                                                            const MessagePtr &);
         ParserStateHandler handler;
-    };
+    } ParserStateDescriptor;
 
     /*!
      * parser state-machine definition
@@ -106,9 +105,9 @@ protected:
     ParserStateDescriptor m_parserStateDescriptor[PARSER_STATE_MAX] =
     {
         /// STAND_BY_STATE
-        _StandByStateHandler,
+        {&Parser::_StandByStateHandler},
         /// INCOMPLETE_MESSAGE_STATE
-        _IncompleteMessageStateHandler
+        {&Parser::_IncompleteMessageStateHandler}
     };
 
     /*!

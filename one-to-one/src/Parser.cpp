@@ -1,13 +1,16 @@
 #include "Parser.hpp"
 #include "Message.hpp"
 #include <boost/shared_ptr.hpp>
+#include <boost/bind.hpp>
 
 Parser::Parser()
 {
     // set initial state
     _Reset();
     // set categories handlers
-    m_categoryHandler['m'] = _Cat_m_Handler;
+    m_categoryHandler['m'] = boost::bind(&Parser::_Cat_m_Handler,
+                                         this,
+                                         _1, _2, _3);
 }
 
 void
@@ -23,11 +26,14 @@ Parser::State() const
 }
 
 void
-Parser::ParseMessage(const MessagePtr &)
+Parser::ParseMessage(const MessagePtr &_msg)
 {
     // implements state-machine
+    ParserStateDescriptor::ParserStateHandler _handler =
+            m_parserStateDescriptor[m_state].handler;
+
     Parser::ParserSignal _signal =
-            m_parserStateDescriptor[m_state].handler(m_state, _msg);
+            (this->*_handler)(m_state, _msg);
     Parser::ParserState _next_state =
             m_parserStateMachine[m_state][_signal];
 
@@ -50,22 +56,19 @@ Parser::_StandByStateHandler(ParserState _state, const MessagePtr &_msg)
     MessageCategoryHandler _handler;
 
     /// check for category
-    try {
-        _handler = m_categoryHandler.at(_cat);
-    }
-    catch (...) throw;
+    _handler = m_categoryHandler.at(_cat);
 
     m_parsedMessage.reset(new ParsedMessage);
     m_parsedMessage->category = CAT_M;
     m_handler = _handler;
-    _result = _handler(_msg, true, m_parsedMessage);
+    _result = _handler(_msg, m_parsedMessage, true);
     return _result;
 }
 
 Parser::ParserSignal
 Parser::_IncompleteMessageStateHandler(ParserState _state, const MessagePtr &_msg)
 {
-    return m_handler(_msg, false, m_parsedMessage);
+    return m_handler(_msg, m_parsedMessage, false);
 }
 
 Parser::ParserSignal
@@ -85,7 +88,7 @@ Parser::_Cat_m_Handler(const MessagePtr &_msg,
         offset = 0x0;
     }
 
-    while (bytes_read < _mgs->length) {
+    while (bytes_read < _msg->length) {
         if (offset == 0x00) {
             // category byte
             if (_msg->msg.get()[0] != 'm') return FAILED_MESSAGE_SIGNAL;
