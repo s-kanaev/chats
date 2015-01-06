@@ -7,6 +7,9 @@ Architecture is as follows:
     Application <---> Network library (TCP/UDP) <---> Network <--->
                 <---> Network library (TCP/UDP) <---> Application
 
+Application is: User (app) <---> Parser
+
+============= Network library =============
 Regardless of whether TCP or UDP protocol is in use by library application
 sees it like a black-box'ed two message queues: incoming and outgoing.
 So message is basic building block for both of client and server. Message
@@ -86,6 +89,7 @@ ClientUDP) should implement SendMsg and StartReceiver to check for connection st
 and should implement connection process. Moreover, neither of the above classes should
 know about protocol.
 
+============= Parser =============
 Protocol should be implemented in Parser class. Parser class is finite state-machine.
 Protocol description:
     // no authentication is provided within protocol
