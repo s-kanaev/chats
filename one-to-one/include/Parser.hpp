@@ -6,6 +6,26 @@
 #include <boost/function.hpp>
 #include <map>
 
+/// category 'm' parsed message
+typedef struct _Cat_m_MessageStruct {
+    char nickname[0x10];
+    char message[0x200];
+} Cat_m_MessageStruct;
+
+/// message categories list
+typedef enum _MessageCategory {
+    CAT_M
+} MessageCategory;
+
+/// unified structure for parsed message
+typedef struct _ParsedMessage {
+    MessageCategory category;
+    union {
+        Cat_m_MessageStruct cat_m;
+    } parsed;
+} ParsedMessage;
+typedef boost::shared_ptr<ParsedMessage> ParsedMessagePtr;
+
 /*!
  * \brief The Parser class
  * Parser class - should parse received messages and create raw messages to send
@@ -27,7 +47,10 @@ public:
     ParserState State() const;
 
     /// add message to process
-    void ParseMessage(MessagePtr _msg);
+    void ParseMessage(const MessagePtr &) throw;
+
+    /// get message from parser
+    ParsedMessagePtr GetParsed();
 
 protected:
     /// parser state-machine signals
@@ -46,10 +69,12 @@ protected:
     typedef struct _ParserStateDescriptor ParserStateDescriptor;
     struct _ParserStateDescriptor {
         /*!
-         * global state handler, input = current state,
+         * global state handler
+         * input = current state, message to parse
          * output = signal
          */
-        typedef ParserSignal (Parser::*ParserStateHandler)(ParserState);
+        typedef ParserSignal (Parser::*ParserStateHandler)(ParserState,
+                                                           const MessagePtr &);
         ParserStateHandler handler;
     };
 
@@ -78,12 +103,12 @@ protected:
         }
     };
     const
-    ParserStateDescriptor m_ParserStateDescriptor[PARSER_STATE_MAX] =
+    ParserStateDescriptor m_parserStateDescriptor[PARSER_STATE_MAX] =
     {
         /// STAND_BY_STATE
         _StandByStateHandler,
         /// INCOMPLETE_MESSAGE_STATE
-        _InclompleteMessageStateHandler
+        _IncompleteMessageStateHandler
     };
 
     /*!
@@ -91,30 +116,50 @@ protected:
      * \param _state current state
      * \return signal
      */
-    ParserSignal _StandByStateHandler(ParserState _state);
+    ParserSignal _StandByStateHandler(ParserState _state,
+                                      const MessagePtr &_msg);
 
     /*!
      * \brief _InclompleteMessageStateHandler
      * \param _state
      * \return
      */
-    ParserSignal _InclompleteMessageStateHandler(ParserState _state);
+    ParserSignal _IncompleteMessageStateHandler(ParserState _state,
+                                                const MessagePtr &_msg);
 
     /*!
      * \brief handler type for message category
-     * input - message to parse
+     * input - message to parse,
+     *         message to parsed pointer
+     *         flag of first_time start (at standby state)
      */
-    typedef boost::function<void(const MessagePtr &_msg)> MessageCategoryHandler;
+    typedef boost::function<ParserSignal(const MessagePtr &_msg,
+                                         ParsedMessagePtr &_parsed,
+                                         bool first_time)>
+            MessageCategoryHandler;
 
     /*!
      * \brief message category handlers map
      */
-    std::map<char, MessageCategoryHandler> CategoryHandler;
+    std::map<char, MessageCategoryHandler> m_categoryHandler;
+
+    /// current state
+    ParserState m_state;
+    /// current category handler
+    MessageCategoryHandler m_handler;
+    /// parsed message pointer
+    ParsedMessagePtr m_parsedMessage;
 
     /*!
-     * \brief _Cat_m_Handler
+     * \brief category 'm' message handler
+     * \return signal for Parser state-machine
      */
-    void _Cat_m_Handler();
+    ParserSignal _Cat_m_Handler(const MessagePtr &_msg,
+                                ParsedMessagePtr &_parsed,
+                                bool first_time);
+
+    /// reset state
+    void _Reset();
 private:
 };
 
