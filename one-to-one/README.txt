@@ -99,9 +99,17 @@ Protocol description:
 
 Category: Message itself ('m')
     byte offset |   size (hex) |    meaning
-    0x01            0x10            nickname to talk with (zero-end string data, or 16 bytes)
+    0x01            0x10            nickname to talk with
+                                    (zero-end string data, has '\0' padding)
     0x11            0x200           message (zero-end string data)
+Total length of 'm'-message is 0x01+0x10+0x200 = 0x211 = 512+16+1 = 529 bytes
+Length is fixed for 'm'-category messages
 
 In general Parser has 2 states:
     - incomplete message state (initial)
     - complete message state
+
+'m' category message has following states (in incomplete message state):
+    - nickname receive in progress (initial)
+    - message receive in progress
+    - message received -> complete message state
