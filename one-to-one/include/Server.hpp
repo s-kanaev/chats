@@ -3,6 +3,7 @@
 
 #include "Message.hpp"
 #include "MessageIO.hpp"
+#include "thread-pool.hpp"
 
 #include <boost/weak_ptr.hpp>
 #include <boost/shared_ptr.hpp>
@@ -28,7 +29,9 @@ public:
      */
     Server(boost::weak_ptr<boost::condition_variable> _app_cv,
            boost::shared_ptr<boost::asio::io_service> &_io_service,
-           boost::weak_ptr<boost::condition_variable> _connection_cv);
+           boost::weak_ptr<boost::condition_variable> _connection_cv,
+           boost::shared_ptr<ThreadPool> &_thread_pool =
+            boost::shared_ptr<ThreaadPool>());
 
     /*!
      * \brief used to listen for next connection
@@ -68,6 +71,8 @@ protected:
     boost::asio::ip::tcp::acceptor m_connection_acceptor;
     /// flags whether the server is in connected state (false by default)
     bool m_connected = false;
+    /// pointer to thread pool
+    boost::shared_ptr<ThreadPool> m_thread_pool;
 };
 
 #endif // SERVER_HPP

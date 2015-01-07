@@ -1,18 +1,23 @@
 #include "Server.hpp"
 #include "MessageIO.hpp"
 #include "Message.hpp"
+#include "thread-pool.hpp"
 
 #undef _ParentClass
 #define _ParentClass MessageIOTCP
 
 Server::Server(boost::weak_ptr<boost::condition_variable> _app_cv,
                boost::shared_ptr<boost::asio::io_service> &_io_service,
-               boost::weak_ptr<boost::condition_variable> _connection_cv) :
+               boost::weak_ptr<boost::condition_variable> _connection_cv,
+               boost::shared_ptr<ThreadPool> &_thread_pool) :
     MessageIO(_app_cv),
     _ParentClass(_app_cv, _io_service),
     m_connection_cv(_connection_cv),
-    m_connection_acceptor(*_io_service)
+    m_connection_acceptor(*_io_service),
+    m_thread_pool(_thread_pool)
 {
+    if (!m_thread_pool.get())
+        m_thread_pool.reset(new ThreadPool(5, m_io_service));
 }
 
 void
