@@ -116,7 +116,17 @@ void SendThread(boost::weak_ptr<Server> _server_ptr,
         _stdio_lock.lock();
         printf("%s >> ", _nickname.get());
         _stdio_lock.unlock();
-        scanf("%[^\n]255s", _parsed_msg->parsed.cat_m.message);
+
+        fgets(_parsed_msg->parsed.cat_m.message,
+              0x200,
+              stdin);
+        _parsed_msg->parsed.cat_m.message[0x200] = '\0';
+
+        std::size_t _l = strlen(_parsed_msg->parsed.cat_m.message);
+
+        if (_parsed_msg->parsed.cat_m.message[_l-1] == '\n' ||
+            _parsed_msg->parsed.cat_m.message[_l-1] == '\r')
+            _parsed_msg->parsed.cat_m.message[_l-1] = '\0';
 
         _parser.CreateCat_m_Message(_parsed_msg, _msg);
 
