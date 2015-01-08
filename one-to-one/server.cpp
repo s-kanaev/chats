@@ -130,9 +130,10 @@ void SendThread(boost::weak_ptr<Server> _server_ptr,
 int main(int argc, char **argv)
 {
     unsigned short _port;
+    char _nickname[0x11];
 
-    if (argc < 2) {
-        printf("usage: %s port\n", argv[0]);
+    if (argc < 3) {
+        printf("usage: %s port nickname (16 char at most)\n", argv[0]);
         return 0;
     }
 
@@ -143,6 +144,8 @@ int main(int argc, char **argv)
         return 1;
     }
     printf("port - %u\n", _port);
+
+    sscanf(argv[2], "%16s", _nickname);
 
     boost::shared_ptr<boost::asio::io_service> _io_service(
             new boost::asio::io_service());
@@ -182,11 +185,11 @@ int main(int argc, char **argv)
         _thread_group.create_thread(boost::bind(RecvThread,
                                                 boost::weak_ptr<Server>(_server),
                                                 _msg_cv));
-        boost::shared_ptr<char> _nickname(new char[0x11]);
-        memcpy(_nickname.get(), "dumb ;-)", strlen("dumb ;-)"));
+        boost::shared_ptr<char> _nickname_ptr(new char[0x11]);
+        memcpy(_nickname.get(), _nickname, strlen(_nickname));
         _thread_group.create_thread(boost::bind(SendThread,
                                                 _server,
-                                                _nickname));
+                                                _nickname_ptr));
 
         _thread_group().join_all();
     }
