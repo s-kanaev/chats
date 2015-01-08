@@ -146,6 +146,7 @@ int main(int argc, char **argv)
     printf("port - %u\n", _port);
 
     sscanf(argv[2], "%16s", _nickname);
+    _nickname[0x10] = '\0';
 
     boost::shared_ptr<boost::asio::io_service> _io_service(
             new boost::asio::io_service());
@@ -186,12 +187,12 @@ int main(int argc, char **argv)
                                                 boost::weak_ptr<Server>(_server),
                                                 _msg_cv));
         boost::shared_ptr<char> _nickname_ptr(new char[0x11]);
-        memcpy(_nickname.get(), _nickname, strlen(_nickname));
+        memcpy(_nickname_ptr.get(), _nickname, strlen(_nickname));
         _thread_group.create_thread(boost::bind(SendThread,
                                                 _server,
                                                 _nickname_ptr));
 
-        _thread_group().join_all();
+        _thread_group.join_all();
     }
 
 //    printf("waiting for message\n");
