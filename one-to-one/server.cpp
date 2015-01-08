@@ -116,7 +116,7 @@ void SendThread(boost::weak_ptr<Server> _server_ptr,
         _stdio_lock.lock();
         printf("%s >> ", _nickname.get());
         _stdio_lock.unlock();
-        scanf("%255s", _parsed_msg->parsed.cat_m.message);
+        scanf("%[^\n]255s", _parsed_msg->parsed.cat_m.message);
 
         _parser.CreateCat_m_Message(_parsed_msg, _msg);
 
