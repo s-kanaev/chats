@@ -52,7 +52,6 @@ Server::_OnConnection(const boost::system::error_code &err)
         m_connected = true;
         if (auto _cv = m_connection_cv.lock()) {
             _cv->notify_all();
-            m_socket.remote_endpoint();
         }
     }
 }
