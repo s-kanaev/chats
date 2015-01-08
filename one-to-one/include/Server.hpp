@@ -34,6 +34,8 @@ public:
            boost::shared_ptr<ThreadPool> &_thread_pool,
            unsigned short _port);
 
+    ~Server();
+
     /*!
      * \brief used to listen for next connection
      * notifies user with m_connection_cv

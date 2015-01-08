@@ -17,6 +17,11 @@ ClientTCP::ClientTCP(boost::weak_ptr<boost::condition_variable> _app_cv,
 {
 }
 
+ClientTCP::~ClientTCP()
+{
+    Disconnect();
+}
+
 void
 ClientTCP::Connect(std::string _addr, unsigned short _port)
 {

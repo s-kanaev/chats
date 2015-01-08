@@ -29,6 +29,8 @@ public:
               boost::shared_ptr<boost::asio::io_service> &_io_service,
               boost::weak_ptr<boost::condition_variable> _connection_cv);
 
+    ~ClientTCP();
+
     /*!
      * \brief calls to async_connect
      * \param _addr address

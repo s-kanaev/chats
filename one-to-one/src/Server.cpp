@@ -21,6 +21,11 @@ Server::Server(boost::weak_ptr<boost::condition_variable> _app_cv,
 {
 }
 
+Server::~Server()
+{
+    Disconnect();
+}
+
 void
 Server::Listen()
 {
