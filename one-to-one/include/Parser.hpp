@@ -12,9 +12,15 @@ typedef struct _Cat_m_MessageStruct {
     char message[0x200];
 } Cat_m_MessageStruct;
 
+/// category 'c' parsed message
+typedef struct _Cat_c_MessageStruct {
+    char action;
+} Cat_c_MessageStruct;
+
 /// message categories list
 typedef enum _MessageCategory {
-    CAT_M
+    CAT_M,
+    CAT_C
 } MessageCategory;
 
 /// unified structure for parsed message
@@ -22,6 +28,7 @@ typedef struct _ParsedMessage {
     MessageCategory category;
     union {
         Cat_m_MessageStruct cat_m;
+        Cat_c_MessageStruct cat_c;
     } parsed;
 } ParsedMessage;
 typedef boost::shared_ptr<ParsedMessage> ParsedMessagePtr;
@@ -46,8 +53,8 @@ public:
     /// return parser state
     ParserState State() const;
 
-    /// add message to process
-    void ParseMessage(const MessagePtr &_msg);
+    /// add message to process, return true if parsing finished
+    bool ParseMessage(const MessagePtr &_msg);
 
     /// get message from parser
     ParsedMessagePtr GetParsed();
@@ -154,6 +161,14 @@ protected:
      * \return signal for Parser state-machine
      */
     ParserSignal _Cat_m_Handler(const MessagePtr &_msg,
+                                ParsedMessagePtr &_parsed,
+                                bool first_time);
+
+    /*!
+     * \brief category 'm' message handler
+     * \return signal for Parser state-machine
+     */
+    ParserSignal _Cat_c_Handler(const MessagePtr &_msg,
                                 ParsedMessagePtr &_parsed,
                                 bool first_time);
 

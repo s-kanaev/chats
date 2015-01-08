@@ -25,8 +25,7 @@ Parser::State() const
     return m_state;
 }
 
-void
-Parser::ParseMessage(const MessagePtr &_msg)
+bool Parser::ParseMessage(const MessagePtr &_msg)
 {
     // implements state-machine
     ParserStateDescriptor::ParserStateHandler _handler =
@@ -38,6 +37,11 @@ Parser::ParseMessage(const MessagePtr &_msg)
             m_parserStateMachine[m_state][_signal];
 
     m_state = _next_state;
+
+    if ((m_state == STAND_BY_STATE) &&
+        (_signal != FAILED_MESSAGE_SIGNAL)) return true;
+
+    return false;
 }
 
 ParsedMessagePtr
@@ -76,7 +80,6 @@ Parser::_Cat_m_Handler(const MessagePtr &_msg,
                        ParsedMessagePtr &_parsed,
                        bool first_time)
 {
-    /// TODO
     static std::size_t offset = 0;
     static std::size_t bytes_copied_nickname = 0,
                        bytes_copied_message = 0;
@@ -92,6 +95,7 @@ Parser::_Cat_m_Handler(const MessagePtr &_msg,
         if (offset == 0x00) {
             // category byte
             if (_msg->msg.get()[0] != 'm') return FAILED_MESSAGE_SIGNAL;
+            else _parsed->category = CAT_M;
             ++bytes_read;
         } else if (offset < 0x11) {
             // nickname
@@ -121,5 +125,39 @@ Parser::_Cat_m_Handler(const MessagePtr &_msg,
     }
 
     if (offset < 0x211) return STILL_NOT_PARSED_SIGNAL;
+    return FINISH_MESSAGE_SIGNAL;
+}
+
+Parser::ParserSignal
+Parser::_Cat_c_Handler(const MessagePtr &_msg,
+                       ParsedMessagePtr &_parsed,
+                       bool first_time)
+{
+    static std::size_t offset = 0;
+    std::size_t bytes_read = 0;
+
+    if (first_time) {
+        offset = 0x0;
+    }
+
+    while (bytes_read < _msg->length) {
+        if (offset == 0x00) {
+            // category byte
+            if (_msg->msg.get()[0] != 'c') return FAILED_MESSAGE_SIGNAL;
+            else _parsed->category = CAT_C;
+            ++bytes_read;
+        } else {
+            switch (_msg->msg.get()[1]) {
+            case 'd' :
+                _parsed->parsed.cat_c.action = 'd';
+                break;
+            default:
+                return FAILED_MESSAGE_SIGNAL;
+            }
+        }
+        offset += bytes_read;
+    }
+
+    if (offset < 0x02) return STILL_NOT_PARSED_SIGNAL;
     return FINISH_MESSAGE_SIGNAL;
 }

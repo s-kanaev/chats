@@ -91,17 +91,25 @@ know about protocol.
 
 ============= Parser =============
 Protocol should be implemented in Parser class. Parser class is finite state-machine.
+
+In general Parser has 2 states:
+    - incomplete message state (initial)
+    - complete message state
+
 Protocol description:
     // no authentication is provided within protocol
     Message categories:
         - message itself (a text to display)
+        - control message
+
     Message format:
     byte offset |   size (hex) |    meaning
     0x00            0x01            message category:
                                         'm' = message itself
+                                        'c' = control message
     0x01            ---             categorized message
 
-Category: Message itself ('m')
+--- Category: Message itself ('m')
     byte offset |   size (hex) |    meaning
     0x01            0x10            nickname to talk with
                                     (zero-end string data, has '\0' padding)
@@ -109,11 +117,14 @@ Category: Message itself ('m')
 Total length of 'm'-message is 0x01+0x10+0x200 = 0x211 = 512+16+1 = 529 bytes
 Length is fixed for 'm'-category messages
 
-In general Parser has 2 states:
-    - incomplete message state (initial)
-    - complete message state
-
 'm' category message has following states (in incomplete message state):
     - nickname receive in progress (initial)
     - message receive in progress
     - message received -> complete message state
+
+--- Category: Control message ('c')
+    byte offset |   size (hex) |    meaning
+    0x01            0x01            action
+                                    'd' = disconect
+Total length of 'c'-message is 0x01+0x01 = 0x02 = 2 bytes
+Length is fixed for 'c'-category messages
