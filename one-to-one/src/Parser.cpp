@@ -125,6 +125,11 @@ Parser::_Cat_m_Handler(const MessagePtr &_msg,
     }
 
     if (offset < 0x211) return STILL_NOT_PARSED_SIGNAL;
+
+    // finalize message: barriers for printf
+    _parsed->parsed.cat_m.nickname[0x10] = '\0';
+    _parsed->parsed.cat_m.message[0x200] = '\0';
+
     return FINISH_MESSAGE_SIGNAL;
 }
 
@@ -160,4 +165,33 @@ Parser::_Cat_c_Handler(const MessagePtr &_msg,
 
     if (offset < 0x02) return STILL_NOT_PARSED_SIGNAL;
     return FINISH_MESSAGE_SIGNAL;
+}
+
+void
+Parser::CreateCat_c_Message(const ParsedMessagePtr &_parsed, MessagePtr &_msg)
+{
+    if (!_parsed.get() ||
+        !_msg.get()) return;
+
+    if (_parsed->category != CAT_C) return;
+
+    _msg->length = 0x02;
+    _msg->msg.reset(new char[_msg->length]);
+    _msg->msg.get()[0] = 'c';
+    _msg->msg.get()[1] = _parsed->parsed.cat_c.action;
+}
+
+void
+Parser::CreateCat_m_Message(const ParsedMessagePtr &_parsed, MessagePtr &_msg)
+{
+    if (!_parsed.get() ||
+        !_msg.get()) return;
+
+    if (_parsed->category != CAT_M) return;
+
+    _msg->length = 0x211;
+    _msg->msg.reset(new char[_msg->length]);
+    _msg->msg.get()[0] = 'm';
+    memcpy(_msg->msg.get()+0x01, _parsed->parsed.cat_m.nickname, 0x10);
+    memcpy(_msg->msg.get()+0x11, _parsed->parsed.cat_m.message, 0x200);
 }

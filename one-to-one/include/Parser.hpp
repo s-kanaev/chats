@@ -8,8 +8,8 @@
 
 /// category 'm' parsed message
 typedef struct _Cat_m_MessageStruct {
-    char nickname[0x10];
-    char message[0x200];
+    char nickname[0x11];
+    char message[0x201];
 } Cat_m_MessageStruct;
 
 /// category 'c' parsed message
@@ -55,6 +55,14 @@ public:
 
     /// add message to process, return true if parsing finished
     bool ParseMessage(const MessagePtr &_msg);
+
+    /// create category 'm' message
+    void CreateCat_m_Message(const ParsedMessagePtr &_parsed,
+                             MessagePtr &_msg);
+
+    /// create category 'c' message
+    void CreateCat_c_Message(const ParsedMessagePtr &_parsed,
+                             MessagePtr &_msg);
 
     /// get message from parser
     ParsedMessagePtr GetParsed();
