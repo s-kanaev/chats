@@ -17,7 +17,7 @@ Server::Server(boost::weak_ptr<boost::condition_variable> _app_cv,
     m_connection_acceptor(),//new boost::asio::ip::tcp::acceptor(*_io_service)),
     m_thread_pool(_thread_pool),
     m_port(_port),
-    m_listen_ep(boost::asio::ip::tcp::v4(), m_port)
+    m_listen_ep(boost::asio::ip::tcp::v4(), _port)
 {
 }
 
@@ -47,6 +47,7 @@ void
 Server::_OnConnection(const boost::system::error_code &err)
 {
     m_listening = false;
+    printf("[Server] some kind of connection here\n");
     /// TODO do smth on error
     if (!err) {
         m_connected = true;
