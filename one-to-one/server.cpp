@@ -180,7 +180,7 @@ int main(int argc, char **argv)
     } else {
         boost::thread_group _thread_group;
         _thread_group.create_thread(boost::bind(RecvThread,
-                                                boost::weak_ptr<Server>_server,
+                                                boost::weak_ptr<Server>(_server),
                                                 _msg_cv));
         boost::shared_ptr<char> _nickname(new char[0x11]);
         memcpy(_nickname.get(), "dumb ;-)", strlen("dumb ;-)"));
