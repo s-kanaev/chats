@@ -93,8 +93,7 @@ protected:
                       std::size_t bytes,
                       MessagePtr _msg) {
         _msg->length = bytes;
-        // lock received message queue
-        boost::unique_lock<boost::mutex> _l(m_recv_queue_mutex); // FIXME: fail here
+        boost::unique_lock<boost::mutex> _l(m_recv_queue_mutex);
         // enqueue received message
         m_recv_queue.push(_msg);
         // unlock the queue
