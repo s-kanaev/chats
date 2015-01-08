@@ -26,19 +26,19 @@ public:
      * \param _app_cv conditional to notify user about received message with
      * \param _io_service boost::asio::io_service to use
      * \param _connection_cv  conditional to notify user about next connection coming with
+     * \param _port port to listen on
      */
     Server(boost::weak_ptr<boost::condition_variable> _app_cv,
            boost::shared_ptr<boost::asio::io_service> &_io_service,
            boost::weak_ptr<boost::condition_variable> _connection_cv,
-           boost::shared_ptr<ThreadPool> &_thread_pool =
-            boost::shared_ptr<ThreaadPool>());
+           boost::shared_ptr<ThreadPool> &_thread_pool,
+           unsigned short _port);
 
     /*!
      * \brief used to listen for next connection
-     * \param _port port to listen on
      * notifies user with m_connection_cv
      */
-    void Listen(unsigned short _port);
+    void Listen();
     /*!
      * \brief used to decline connection (shutdown and close the socket)
      */
@@ -56,6 +56,20 @@ public:
      */
     bool StartReceiver();
 
+    /*!
+     * \brief API to get remote endpoint
+     * \return remote endpoint
+     */
+    boost::asio::ip::tcp::endpoint
+    Remote();
+
+    /*!
+     * \brief API to check if server is in connected state
+     * \return true if connected, false otherwise
+     */
+    bool
+    IsConnected() const;
+
 protected:
     /*!
      * \brief callback for async_connect
@@ -68,11 +82,15 @@ protected:
     /// endpoint to listen connections on
     boost::asio::ip::tcp::endpoint m_listen_ep;
     /// acceptor to accept connection
-    boost::asio::ip::tcp::acceptor m_connection_acceptor;
+    boost::shared_ptr<boost::asio::ip::tcp::acceptor> m_connection_acceptor;
     /// flags whether the server is in connected state (false by default)
     bool m_connected = false;
     /// pointer to thread pool
     boost::shared_ptr<ThreadPool> m_thread_pool;
+    /// port to listen
+    unsigned short m_port;
+    /// whether server is listening now
+    bool m_listening = false;
 };
 
 #endif // SERVER_HPP

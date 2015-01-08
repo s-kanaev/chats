@@ -31,8 +31,12 @@ public:
      * \brief MessageIO constructor
      * \param _app_cv conditional to notify user about message received with
      */
-    MessageIO(boost::weak_ptr<boost::condition_variable> _app_cv) :
+    MessageIO(boost::weak_ptr<boost::condition_variable> &_app_cv) :
         m_app_cv(_app_cv)
+    {
+    }
+
+    ~MessageIO()
     {
     }
 
@@ -106,14 +110,18 @@ protected:
      * \brief actual receiver start function
      */
     virtual
-    bool _StartReceiver();
+    bool _StartReceiver()
+    {
+    }
 
     /*!
      * \brief Callback to use when there is any message to send
      * should call to async_send
      */
     virtual
-    void _Sender(MessagePtr _msg);
+    void _Sender(MessagePtr _msg)
+    {
+    }
 
     /*********** variables ***************/
     /// received message queue
@@ -132,7 +140,7 @@ private:
 /// derivative should implement m_socket setup
 class MessageIOTCP : virtual public MessageIO {
 public:
-    MessageIOTCP(boost::weak_ptr<boost::condition_variable> _app_cv,
+    MessageIOTCP(boost::weak_ptr<boost::condition_variable> &_app_cv,
                  boost::shared_ptr<boost::asio::io_service> &_io_service) :
         MessageIO(_app_cv),
         m_io_service(_io_service),

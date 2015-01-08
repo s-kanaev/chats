@@ -9,51 +9,50 @@
 Server::Server(boost::weak_ptr<boost::condition_variable> _app_cv,
                boost::shared_ptr<boost::asio::io_service> &_io_service,
                boost::weak_ptr<boost::condition_variable> _connection_cv,
-               boost::shared_ptr<ThreadPool> &_thread_pool) :
+               boost::shared_ptr<ThreadPool> &_thread_pool,
+               unsigned short _port) :
     MessageIO(_app_cv),
     _ParentClass(_app_cv, _io_service),
     m_connection_cv(_connection_cv),
-    m_connection_acceptor(*_io_service),
-    m_thread_pool(_thread_pool)
+    m_connection_acceptor(),//new boost::asio::ip::tcp::acceptor(*_io_service)),
+    m_thread_pool(_thread_pool),
+    m_port(_port),
+    m_listen_ep(boost::asio::ip::tcp::v4(), m_port)
 {
-    if (!m_thread_pool.get())
-        m_thread_pool.reset(new ThreadPool(5, m_io_service));
 }
 
 void
-Server::Listen(unsigned short _port)
+Server::Listen()
 {
     /// setup socket for listening
-//    boost::asio::ip::tcp::resolver _r(*m_io_service);
-//    boost::asio::ip::tcp::resolver::query _q(_addr, std::to_string(_port));
-//    boost::asio::ip::tcp::resolver::iterator _it = _r.resolve(_q);
 
-    if (_port) {
-        // initialize listen endpoint and connection acceptor
-        m_listen_ep =
-                boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), _port);
-        m_connection_acceptor =
-                boost::asio::ip::tcp::acceptor(*m_io_service,
-                                               m_listen_ep,
-                                               true);
+    if (!m_connection_acceptor.get()) {
+        // initialize connection acceptor
+        m_connection_acceptor.reset(
+                new boost::asio::ip::tcp::acceptor(*m_io_service,
+                                                   m_listen_ep,
+                                                   true));
     }
 
-    m_connection_acceptor.async_accept(
+    m_connection_acceptor->async_accept(
                 m_socket, // new connection will be accepted into this socket
                 m_listen_ep, // listening endpoint
                 boost::bind(&Server::_OnConnection,
                             this,
                             _1));
+    m_listening = true;
 }
 
 void
 Server::_OnConnection(const boost::system::error_code &err)
 {
+    m_listening = false;
     /// TODO do smth on error
     if (!err) {
         m_connected = true;
         if (auto _cv = m_connection_cv.lock()) {
             _cv->notify_all();
+            m_socket.remote_endpoint();
         }
     }
 }
@@ -79,4 +78,18 @@ Server::SendMsg(MessagePtr _msg)
 {
     if (m_connected)
         _ParentClass::SendMsg(_msg);
+}
+
+boost::asio::ip::tcp::endpoint
+Server::Remote()
+{
+    if (m_connected)
+        return m_socket.remote_endpoint();
+    return boost::asio::ip::tcp::endpoint();
+}
+
+bool
+Server::IsConnected() const
+{
+    return m_connected;
 }
