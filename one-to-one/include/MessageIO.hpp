@@ -183,6 +183,8 @@ protected:
 
     /// will call to async_send of the socket
     void _Sender(MessagePtr _msg) {
+        if (!_msg.get()) return;
+
         std::size_t offset = 0;
         boost::asio::socket_base::send_buffer_size _size;
         m_socket.get_option(_size);
@@ -273,6 +275,8 @@ protected:
     virtual
     void _Sender(MessagePtr _msg)
     {
+        if (!_msg.get()) return;
+
         std::size_t offset = 0;
         boost::asio::socket_base::send_buffer_size _size;
         m_socket.get_option(_size);
