@@ -70,7 +70,7 @@ bool
 Server::StartReceiver()
 {
     if (!m_connected) return false;
-    _ParentClass::StartReceiver();
+    return _ParentClass::StartReceiver();
 }
 
 void
