@@ -50,5 +50,7 @@ int main(int argc, char **argv)
     // so, we've got a connection
     printf("Someone connected.\n");
 
+    if (!_server->StartReceiver()) printf("Cannot start receiver\n");
+
     return 0;
 }
