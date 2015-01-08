@@ -178,7 +178,7 @@ int main(int argc, char **argv)
     if (!_server->StartReceiver()) {
         printf("Cannot start receiver\n");
     } else {
-        boost::thread_group _thread_group();
+        boost::thread_group _thread_group;
         _thread_group.create_thread(boost::bind(RecvThread,
                                                 boost::weak_ptr<Server>_server,
                                                 _msg_cv));
