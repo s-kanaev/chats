@@ -81,6 +81,16 @@ public:
         _Sender(_msg);
     }
 
+    /*!
+     * \brief DontHaveMessages
+     * \return true if dont have received messages, false otherwise
+     */
+    virtual
+    bool DontHaveMessages() const {
+        boost::unique_lock<boost::mutex> _scoped(m_recv_queue_mutex);
+        return m_recv_queue.empty();
+    }
+
 protected:
     /********** functions **************/
     /*!
@@ -130,11 +140,12 @@ protected:
     std::queue<MessagePtr> m_recv_queue;
 
     /// received message queue mutex
-    boost::mutex m_recv_queue_mutex;
+    mutable boost::mutex m_recv_queue_mutex;
 
     /// link to notification variable to notify
     /// application with when some message is received
     boost::weak_ptr<boost::condition_variable> m_app_cv;
+
 private:
 };
 
@@ -180,13 +191,29 @@ protected:
      */
     void _MsgSent(const boost::system::error_code &error,
                 std::size_t bytes_writen,
-                MessagePtr _msg) {
+                MessagePtr _msg,
+                boost::shared_ptr<boost::unique_lock<boost::mutex> > _block_lock) {
         /// do smth, especialy on error
+        boost::unique_lock<boost::mutex> _lock(m_send_queued_mutex);
+        -- m_send_queued;
+        if (!m_send_queued) {
+            _block_lock->unlock();
+            /// notify in case of someone (Disconnect) waits for us to finish
+            m_send_cv.notify_all();
+        }
     }
 
     /// will call to async_send of the socket
     void _Sender(MessagePtr _msg) {
         if (!_msg.get()) return;
+
+        // block to send
+        boost::shared_ptr<boost::unique_lock<boost::mutex>> _block_lock(
+            new boost::unique_lock<boost::mutex>(m_send_queued_mutex_block));
+
+        // lock to change m_send_queued
+        boost::unique_lock<boost::mutex> _lock(m_send_queued_mutex);
+        _lock.unlock();
 
         std::size_t offset = 0;
         boost::asio::socket_base::send_buffer_size _size;
@@ -201,10 +228,15 @@ protected:
             _m->msg.reset(new char[_m->length]);
             memcpy(_m->msg.get(), _msg->msg.get()+offset, _m->length);
             offset += _m->length;
+
+            _lock.lock();
+            ++m_send_queued;
+            _lock.unlock();
+
             m_socket.async_send(boost::asio::buffer(_m->msg.get(), _m->length),
                                 0,
                                 boost::bind(&MessageIOTCP::_MsgSent,
-                                            this, _1, _2, _m));
+                                            this, _1, _2, _m, _block_lock));
         }
 
         if (offset > 0) {
@@ -212,10 +244,13 @@ protected:
             _msg->length -= offset;
         }
 
+        _lock.lock();
+        ++m_send_queued;
+        _lock.unlock();
         m_socket.async_send(boost::asio::buffer(_msg->msg.get(), _msg->length),
                             0,
                             boost::bind(&MessageIOTCP::_MsgSent,
-                                        this, _1, _2, _msg));
+                                        this, _1, _2, _msg, _block_lock));
     }
 
     /*********** variables *************/
@@ -223,6 +258,14 @@ protected:
     boost::shared_ptr<boost::asio::io_service> m_io_service;
     /// socket to send and receive data with
     boost::asio::ip::tcp::socket m_socket;
+    /// flags if there is anything to send
+    std::size_t m_send_queued = 0;
+    /// mutex to block disconnect before send complete
+    boost::mutex m_send_queued_mutex_block;
+    /// mutex for m_send_queued
+    boost::mutex m_send_queued_mutex;
+    /// conditional to notify thread
+    boost::condition_variable m_send_cv;
 };
 
 /// message i/o operation class for udp
