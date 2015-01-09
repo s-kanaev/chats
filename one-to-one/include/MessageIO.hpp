@@ -93,16 +93,19 @@ protected:
                       std::size_t bytes,
                       MessagePtr _msg) {
         _msg->length = bytes;
-        boost::unique_lock<boost::mutex> _l(m_recv_queue_mutex);
-        // enqueue received message
-        m_recv_queue.push(_msg);
-        // unlock the queue
-        _l.unlock();
-        // notify connected receiver (application)
-        if (auto _cv = m_app_cv.lock()) {
-            _cv->notify_all();
+        if (!e) {
+            boost::unique_lock<boost::mutex> _l(m_recv_queue_mutex);
+            // enqueue received message
+            m_recv_queue.push(_msg);
+            // unlock the queue
+            _l.unlock();
+            // notify connected receiver (application)
+            if (auto _cv = m_app_cv.lock()) {
+                _cv->notify_all();
+            }
+
+            _StartReceiver();
         }
-        _StartReceiver();
     }
 
     /*!
