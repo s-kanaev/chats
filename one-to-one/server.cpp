@@ -45,24 +45,23 @@ void Signal_INT_TERM_handler(const boost::system::error_code& error,
 }
 
 void RecvThread(boost::weak_ptr<Server> _server_ptr,
-                boost::shared_ptr<boost::condition_variable> _msg_recv_cv)
+                boost::shared_ptr<boost::condition_variable> _msg_recv_cv,
+                boost::shared_ptr<char> _nickname)
 {
     Parser _parser;
     MessagePtr _msg;
     boost::unique_lock<boost::mutex> _lock(finish_flag_mutex);
 
     while (!finish_flag) {
-        _msg_recv_cv->wait(_lock,
-                           [&]{
-                            return finish_flag ||
-                                   boost::this_thread::interruption_requested();
-                           });
+        _msg_recv_cv->wait(_lock);
+
+        if (finish_flag) break;
+
+        _lock.unlock();
 
         if (auto _server = _server_ptr.lock()) {
             _msg = _server->GetMsg();
         }
-
-        _lock.unlock();
 
         if (_msg.get()) {
             if (_parser.ParseMessage(_msg)) {
@@ -75,6 +74,9 @@ void RecvThread(boost::weak_ptr<Server> _server_ptr,
                         printf("%s > %s\n",
                                _parsed_msg->parsed.cat_m.nickname,
                                _parsed_msg->parsed.cat_m.message);
+                        // print greeting
+                        printf("%s >> ", _nickname.get());
+                        fflush(stdout);
                         break;
                     case CAT_C:
                         if (_parsed_msg->parsed.cat_c.action == 'd') {
@@ -153,8 +155,8 @@ int main(int argc, char **argv)
         fprintf(stderr, "Wrong port number\n");
         return 1;
     }
-    printf("port - %u\n", _port);
 
+    memset(_nickname, 0, 0x11);
     sscanf(argv[2], "%16s", _nickname);
     _nickname[0x10] = '\0';
 
@@ -174,6 +176,9 @@ int main(int argc, char **argv)
                        _port)); // server instance
     boost::mutex _m;    // mutex for conditionals
 
+    boost::asio::signal_set _signals(*_io_service, SIGINT, SIGTERM);
+    _signals.async_wait(boost::bind(Signal_INT_TERM_handler, _1, _2, _server));
+
     _server->Listen();
 
     boost::unique_lock<boost::mutex> _l(_m);
@@ -191,15 +196,20 @@ int main(int argc, char **argv)
            _remote.address().to_string().c_str(),
            _remote.port());
 
+    printf("_msg_cv - %p\n",
+           _msg_cv.get());
+
     if (!_server->StartReceiver()) {
         printf("Cannot start receiver\n");
     } else {
+        boost::shared_ptr<char> _nickname_ptr(new char[0x11]);
+        memcpy(_nickname_ptr.get(), _nickname, strlen(_nickname));
         boost::thread_group _thread_group;
         _thread_group.create_thread(boost::bind(RecvThread,
                                                 boost::weak_ptr<Server>(_server),
-                                                _msg_cv));
-        boost::shared_ptr<char> _nickname_ptr(new char[0x11]);
-        memcpy(_nickname_ptr.get(), _nickname, strlen(_nickname));
+                                                _msg_cv,
+                                                _nickname_ptr));
+
         _thread_group.create_thread(boost::bind(SendThread,
                                                 _server,
                                                 _nickname_ptr));
