@@ -55,7 +55,9 @@ Server::_OnConnection(const boost::system::error_code &err)
     printf("[Server] some kind of connection here\n");
     /// TODO do smth on error
     if (!err) {
+        boost::unique_lock<boost::mutex> _scoped(m_connected_mutex);
         m_connected = true;
+        _scoped.unlock();
         if (auto _cv = m_connection_cv.lock()) {
             _cv->notify_all();
         }
@@ -65,8 +67,11 @@ Server::_OnConnection(const boost::system::error_code &err)
 void
 Server::Disconnect()
 {
+    boost::unique_lock<boost::mutex> _scoped(m_connected_mutex);
     if (!m_connected) return;
     m_connected = false;
+    _scoped.unlock();
+
     m_socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both);
     m_socket.close();
 }
@@ -74,6 +79,7 @@ Server::Disconnect()
 bool
 Server::StartReceiver()
 {
+    boost::unique_lock<boost::mutex> _scoped(m_connected_mutex);
     if (!m_connected) return false;
     return _ParentClass::StartReceiver();
 }
@@ -81,6 +87,7 @@ Server::StartReceiver()
 void
 Server::SendMsg(MessagePtr _msg)
 {
+    boost::unique_lock<boost::mutex> _scoped(m_connected_mutex);
     if (m_connected)
         _ParentClass::SendMsg(_msg);
 }
@@ -88,6 +95,7 @@ Server::SendMsg(MessagePtr _msg)
 boost::asio::ip::tcp::endpoint
 Server::Remote()
 {
+    boost::unique_lock<boost::mutex> _scoped(m_connected_mutex);
     if (m_connected)
         return m_socket.remote_endpoint();
     return boost::asio::ip::tcp::endpoint();
@@ -96,5 +104,6 @@ Server::Remote()
 bool
 Server::IsConnected() const
 {
+    boost::unique_lock<boost::mutex> _scoped(m_connected_mutex);
     return m_connected;
 }

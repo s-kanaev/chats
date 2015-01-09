@@ -177,7 +177,10 @@ int main(int argc, char **argv)
     _server->Listen();
 
     boost::unique_lock<boost::mutex> _l(_m);
-    _connection_cv->wait(_l);
+    _connection_cv->wait(_l,
+                         [&]{
+                            return _server->IsConnected();
+                         );
     _l.unlock();
 
     // so, we've got a connection
@@ -188,7 +191,6 @@ int main(int argc, char **argv)
            _remote.address().to_string().c_str(),
            _remote.port());
 
-    _l.lock();
     if (!_server->StartReceiver()) {
         printf("Cannot start receiver\n");
     } else {
@@ -205,6 +207,7 @@ int main(int argc, char **argv)
         _thread_group.join_all();
     }
 
+//    _l.lock();
 //    printf("waiting for message\n");
 //    _msg_cv->wait(_l);
 //    printf("Message received\n");

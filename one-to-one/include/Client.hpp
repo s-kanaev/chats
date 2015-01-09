@@ -7,6 +7,7 @@
 #include <boost/weak_ptr.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/thread/condition_variable.hpp>
+#include <boost/thread/mutex.hpp>
 #include <boost/asio.hpp>
 #include <string>
 
@@ -54,6 +55,11 @@ public:
      */
     bool StartReceiver();
 
+    /*!
+     * \brief IsConnected
+     * \return true if connected, false otherwise
+     */
+    bool IsConnected();
 protected:
     /********** functions ************/
     /*!
@@ -72,6 +78,8 @@ protected:
     boost::shared_ptr<boost::asio::io_service> m_io_service;
     /// flags if is in connected or not
     bool m_connected = false;
+    /// m_connected flag mutex
+    boost::mutex m_connected_mutex;
 };
 
 /*!

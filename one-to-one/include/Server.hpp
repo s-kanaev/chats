@@ -87,6 +87,8 @@ protected:
     boost::shared_ptr<boost::asio::ip::tcp::acceptor> m_connection_acceptor;
     /// flags whether the server is in connected state (false by default)
     bool m_connected = false;
+    /// m_connected flag mutex
+    boost::mutex m_connected_mutex;
     /// pointer to thread pool
     boost::shared_ptr<ThreadPool> m_thread_pool;
     /// port to listen
