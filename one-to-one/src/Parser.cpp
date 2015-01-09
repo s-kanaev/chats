@@ -11,6 +11,10 @@ Parser::Parser()
     m_categoryHandler['m'] = boost::bind(&Parser::_Cat_m_Handler,
                                          this,
                                          _1, _2, _3);
+
+    m_categoryHandler['c'] = boost::bind(&Parser::_Cat_c_Handler,
+                                         this,
+                                         _1, _2, _3);
 }
 
 void
@@ -60,7 +64,13 @@ Parser::_StandByStateHandler(ParserState _state, const MessagePtr &_msg)
     MessageCategoryHandler _handler;
 
     /// check for category
-    _handler = m_categoryHandler.at(_cat);
+    try {
+        _handler = m_categoryHandler.at(_cat);
+    }
+    catch (...) {
+        _Reset();
+        throw;
+    }
 
     m_parsedMessage.reset(new ParsedMessage);
     m_parsedMessage->category = CAT_M;
