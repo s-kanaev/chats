@@ -64,16 +64,26 @@ Parser::_StandByStateHandler(ParserState _state, const MessagePtr &_msg)
     MessageCategoryHandler _handler;
 
     /// check for category
-    try {
-        _handler = m_categoryHandler.at(_cat);
-    }
-    catch (...) {
+    std::map<char, MessageCategoryHandler>::iterator _found =
+            m_categoryHandler.find(_cat);
+    if (_found == m_categoryHandler.end()) {
         _Reset();
-        throw;
+        return FAILED_MESSAGE_SIGNAL;
     }
 
+    _handler = _found->second;
+
     m_parsedMessage.reset(new ParsedMessage);
-    m_parsedMessage->category = CAT_M;
+
+    switch (_found->first) {
+    case 'm' :
+        m_parsedMessage->category = CAT_M;
+        break;
+    case 'c' :
+        m_parsedMessage->category = CAT_C;
+        break;
+    }
+
     m_handler = _handler;
     _result = _handler(_msg, m_parsedMessage, true);
     return _result;
@@ -169,6 +179,7 @@ Parser::_Cat_c_Handler(const MessagePtr &_msg,
             default:
                 return FAILED_MESSAGE_SIGNAL;
             }
+            ++bytes_read;
         }
         offset += bytes_read;
     }
