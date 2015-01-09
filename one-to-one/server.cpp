@@ -180,7 +180,7 @@ int main(int argc, char **argv)
     _connection_cv->wait(_l,
                          [&]{
                             return _server->IsConnected();
-                         );
+                         });
     _l.unlock();
 
     // so, we've got a connection

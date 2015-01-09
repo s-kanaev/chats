@@ -3,6 +3,8 @@
 #include "Message.hpp"
 #include "thread-pool.hpp"
 
+#include <boost/thread.hpp>
+
 #undef _ParentClass
 #define _ParentClass MessageIOTCP
 

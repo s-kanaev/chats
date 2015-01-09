@@ -94,7 +94,7 @@ ClientTCP::SendMsg(MessagePtr _msg)
 }
 
 bool
-ClientTCP::IsConnected()
+ClientTCP::IsConnected() const
 {
     boost::unique_lock<boost::mutex> _scoped(m_connected_mutex);
 

@@ -59,7 +59,7 @@ public:
      * \brief IsConnected
      * \return true if connected, false otherwise
      */
-    bool IsConnected();
+    bool IsConnected() const;
 protected:
     /********** functions ************/
     /*!
@@ -79,7 +79,7 @@ protected:
     /// flags if is in connected or not
     bool m_connected = false;
     /// m_connected flag mutex
-    boost::mutex m_connected_mutex;
+    mutable boost::mutex m_connected_mutex;
 };
 
 /*!
