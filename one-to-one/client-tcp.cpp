@@ -1,5 +1,237 @@
-int main(void)
+#include "Client.hpp"
+#include "Message.hpp"
+#include "Parser.hpp"
+#include "thread-pool.hpp"
+
+#include <boost/shared_ptr.hpp>
+#include <boost/asio.hpp>
+#include <boost/thread.hpp>
+#include <boost/thread/condition_variable.hpp>
+
+#include <cstring>
+#include <cstdlib>
+#include <cstdio>
+
+// printf mutex
+boost::mutex stdio_mutex;
+
+// flag whether recv and send threads should stop (and server too)
+bool finish_flag = false;
+// mutex for this flag
+boost::mutex finish_flag_mutex;
+
+// ctrl-c handler
+void Signal_INT_TERM_handler(const boost::system::error_code& error,
+                             int signal,
+                             boost::shared_ptr<ClientTCP> _client)
 {
-    return 0;
+    // just stop it if no error dispatched
+    if (!error) {
+        printf("Stopping client\n");
+        Parser _parser;
+        ParsedMessagePtr _parsed_msg(new ParsedMessage);
+        MessagePtr _msg(new Message);
+
+        _parsed_msg->category = CAT_C;
+        _parsed_msg->parsed.cat_c.action = 'd';
+
+        _parser.CreateCat_c_Message(_parsed_msg, _msg);
+
+        _client->SendMsg(_msg);
+
+        boost::unique_lock<boost::mutex> _scoped(finish_flag_mutex);
+        finish_flag = true;
+    }
 }
 
+void RecvThread(boost::weak_ptr<ClientTCP> _client_ptr,
+                boost::shared_ptr<boost::condition_variable> _msg_recv_cv,
+                boost::shared_ptr<char> _nickname)
+{
+    Parser _parser;
+    MessagePtr _msg;
+    boost::unique_lock<boost::mutex> _lock(finish_flag_mutex);
+
+    while (!finish_flag) {
+        _msg_recv_cv->wait(_lock);
+
+        if (finish_flag) break;
+
+        _lock.unlock();
+
+        if (auto _client = _client_ptr.lock()) {
+            _msg = _client->GetMsg();
+        }
+
+        if (_msg.get()) {
+            if (_parser.ParseMessage(_msg)) {
+                ParsedMessagePtr _parsed_msg;
+                _parsed_msg = _parser.GetParsed();
+                if (_parsed_msg.get()) {
+                    boost::unique_lock<boost::mutex> _scoped(stdio_mutex);
+                    switch (_parsed_msg->category) {
+                    case CAT_M:
+                        printf("%s > %s\n",
+                               _parsed_msg->parsed.cat_m.nickname,
+                               _parsed_msg->parsed.cat_m.message);
+                        // print greeting
+                        printf("%s >> ", _nickname.get());
+                        fflush(stdout);
+                        break;
+                    case CAT_C:
+                        if (_parsed_msg->parsed.cat_c.action == 'd') {
+                            _lock.lock();
+                            finish_flag = true;
+                            _lock.unlock();
+                        }
+                    } // switch (_parsed_msg->category)
+                } // if (_parsed_msg.get())
+            } // if (_parser.ParseMessage(_msg))
+        } // if (_msg.get())
+
+        _lock.lock();
+    }
+}
+
+void SendThread(boost::weak_ptr<ClientTCP> _client_ptr,
+                boost::shared_ptr<char> _nickname)
+{
+    // TODO: function implementing send thread
+    Parser _parser;
+    ParsedMessagePtr _parsed_msg(new ParsedMessage);
+    MessagePtr _msg(new Message);
+
+    boost::unique_lock<boost::mutex> _lock(finish_flag_mutex);
+    boost::unique_lock<boost::mutex> _stdio_lock(stdio_mutex);
+
+    _stdio_lock.unlock();
+
+    _parsed_msg->category = CAT_M;
+
+    memcpy(_parsed_msg->parsed.cat_m.nickname,
+           _nickname.get(),
+           strlen(_nickname.get()) > 0x10 ? 0x10 : strlen(_nickname.get()));
+
+    while (!finish_flag) {
+        _lock.unlock();
+
+        _stdio_lock.lock();
+        printf("%s >> ", _nickname.get());
+        _stdio_lock.unlock();
+
+        fgets(_parsed_msg->parsed.cat_m.message,
+              0x200,
+              stdin);
+        _parsed_msg->parsed.cat_m.message[0x200] = '\0';
+
+        std::size_t _l = strlen(_parsed_msg->parsed.cat_m.message);
+
+        if (_parsed_msg->parsed.cat_m.message[_l-1] == '\n' ||
+            _parsed_msg->parsed.cat_m.message[_l-1] == '\r')
+            _parsed_msg->parsed.cat_m.message[_l-1] = '\0';
+
+        _parser.CreateCat_m_Message(_parsed_msg, _msg);
+
+        if (auto _client = _client_ptr.lock())
+            _client->SendMsg(_msg);
+
+        _lock.lock();
+    }
+}
+
+int main(int argc, char **argv)
+{
+    unsigned short _port;
+    char _nickname[0x11];
+
+    if (argc < 4) {
+        printf("usage: %s address port nickname (16 char at most)\n", argv[0]);
+        return 0;
+    }
+
+    sscanf(argv[2], "%u", &_port);
+
+    if (_port == 0) {
+        fprintf(stderr, "Wrong port number\n");
+        return 1;
+    }
+    printf("port - %u\n", _port);
+
+    memset(_nickname, 0, 0x11);
+    sscanf(argv[3], "%16s", _nickname);
+    _nickname[0x10] = '\0';
+
+    boost::shared_ptr<boost::asio::io_service> _io_service(
+            new boost::asio::io_service());
+    boost::shared_ptr<ThreadPool> _thread_pool(
+            new ThreadPool(10, _io_service));
+    boost::shared_ptr<boost::condition_variable>
+            _connection_cv(new boost::condition_variable),
+            _msg_cv(new boost::condition_variable); // msg recv cv, connection cv
+
+    boost::shared_ptr<ClientTCP> _client(new ClientTCP(
+                                             _msg_cv,
+                                             _io_service,
+                                             _connection_cv)); // client instance
+    boost::mutex _m;    // mutex for conditionals
+
+    boost::asio::signal_set _signals(*_io_service, SIGINT, SIGTERM);
+    _signals.async_wait(boost::bind(Signal_INT_TERM_handler, _1, _2, _client));
+
+    _client->Connect(argv[1], _port);
+
+    boost::unique_lock<boost::mutex> _l(_m);
+    printf("Wait until connected\n");
+    _connection_cv->wait(_l,
+                         [&] {
+                            return _client->IsConnected();
+                         });
+    printf("Connected\n");
+    _l.unlock();
+
+    printf("Connected to host\n");
+
+    printf("_msg_cv - %p\n",
+           _msg_cv.get());
+
+    if (!_client->StartReceiver()) {
+        printf("Cannot start receiver\n");
+    } else {
+        boost::shared_ptr<char> _nickname_ptr(new char[0x11]);
+        memcpy(_nickname_ptr.get(), _nickname, strlen(_nickname));
+        boost::thread_group _thread_group;
+
+        _thread_group.create_thread(boost::bind(RecvThread,
+                                                boost::weak_ptr<ClientTCP>(_client),
+                                                _msg_cv,
+                                                _nickname_ptr));
+
+        _thread_group.create_thread(boost::bind(SendThread,
+                                                boost::weak_ptr<ClientTCP>(_client),
+                                                _nickname_ptr));
+        _thread_group.join_all();
+    }
+
+//    _l.lock();
+//    printf("waiting for message\n");
+//    _msg_cv->wait(_l);
+//    printf("Message received\n");
+//    MessagePtr _new_msg = _client->GetMsg();
+//    printf("\t length: %u\n"
+//           "\t body: '%s'\n",
+//           _new_msg->length,
+//           _new_msg->msg.get());
+
+//    MessagePtr _msg(new Message);
+//    _msg->length = strlen("Hey there!\n");
+//    _msg->msg.reset(strdup("Hey there!\n"), free);
+//    printf("Sending message: l = %u, '%s'\n",
+//           _msg->length,
+//           _msg->msg.get());
+//    _client->SendMsg(_msg);
+//    printf("Send ok?\n");
+
+    _io_service->stop();
+
+    return 0;
+}
