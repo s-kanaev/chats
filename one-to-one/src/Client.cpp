@@ -49,18 +49,11 @@ ClientTCP::Connect(std::string _addr, unsigned short _port)
 void
 ClientTCP::_OnConnect(const boost::system::error_code &err)
 {
-    /// TODO do smth on error
-    printf("[Client] _OnClient, error message: %d = %s\n",
-           err.value(),
-           err.message().c_str());
-
     if (!err) {
-        printf("[Client]\t connected!\n");
         boost::unique_lock<boost::mutex> _scoped(m_connected_mutex);
         m_connected = true;
         _scoped.unlock();
         if (auto _cv = m_connection_cv.lock()) {
-            printf("[Client] Notifying!\n");
             _cv->notify_all();
         }
     }
@@ -69,10 +62,23 @@ ClientTCP::_OnConnect(const boost::system::error_code &err)
 void
 ClientTCP::Disconnect()
 {
+    // block send action
+    boost::unique_lock<boost::mutex> _send_lock(m_send_queued_mutex);
+
+    // m_send_queued_mutex is locked by this function, thus there is
+    // nothing to send
+
     boost::unique_lock<boost::mutex> _scoped(m_connected_mutex);
+
     if (!m_connected) return;
     m_connected = false;
+
     _scoped.unlock();
+
+    // notify msg recv conditional in case someone waits for it
+    if (auto _msg_recv_cv = m_app_cv.lock())
+        _msg_recv_cv->notify_all();
+
     m_socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both);
     m_socket.close();
 }
