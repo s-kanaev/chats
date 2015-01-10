@@ -23,7 +23,8 @@ boost::mutex finish_flag_mutex;
 // ctrl-c handler
 void Signal_INT_TERM_handler(const boost::system::error_code& error,
                              int signal,
-                             boost::shared_ptr<Server> _server)
+                             boost::shared_ptr<Server> _server,
+                             boost::shared_ptr<boost::condition_variable> _stdio_cv)
 {
     // just stop it if no error dispatched
     if (!error) {
@@ -31,6 +32,8 @@ void Signal_INT_TERM_handler(const boost::system::error_code& error,
 
         boost::unique_lock<boost::mutex> _scoped(finish_flag_mutex);
         finish_flag = true;
+
+        _stdio_cv->notify_all();
 
         Parser _parser;
         ParsedMessagePtr _parsed_msg(new ParsedMessage);
@@ -48,7 +51,8 @@ void Signal_INT_TERM_handler(const boost::system::error_code& error,
 
 void RecvThread(boost::weak_ptr<Server> _server_ptr,
                 boost::shared_ptr<boost::condition_variable> _msg_recv_cv,
-                boost::shared_ptr<char> _nickname)
+                boost::shared_ptr<char> _nickname,
+                boost::shared_ptr<boost::condition_variable> _stdio_cv)
 {
     Parser _parser;
     MessagePtr _msg;
@@ -88,6 +92,7 @@ void RecvThread(boost::weak_ptr<Server> _server_ptr,
                                 _lock.lock();
                                 finish_flag = true;
                                 _lock.unlock();
+                                _stdio_cv->notify_all();
                             }
                         } // switch (_parsed_msg->category)
                     } // if (_parsed_msg.get())
@@ -100,12 +105,35 @@ void RecvThread(boost::weak_ptr<Server> _server_ptr,
     printf("%s out!\n", __func__);
 }
 
+void StdInThread(char *_buffer,
+                 std::size_t _buf_sz,
+                 boost::weak_ptr<boost::condition_variable> _cv_ptr)
+{
+    boost::unique_lock<boost::mutex> _lock(finish_flag_mutex);
+
+    while (!finish_flag) {
+        _lock.unlock();
+
+        fgets(_buffer,
+              _buf_sz,
+              stdin);
+        _buffer[_buf_sz - 0x01] = '\0';
+
+        if (auto _cv = _cv_ptr.lock())
+            _cv->notify_all();
+
+        _lock.lock();
+    }
+}
+
 void SendThread(boost::weak_ptr<Server> _server_ptr,
-                boost::shared_ptr<char> _nickname)
+                boost::shared_ptr<char> _nickname,
+                boost::shared_ptr<boost::condition_variable> _stdin_cv)
 {
     Parser _parser;
     ParsedMessagePtr _parsed_msg(new ParsedMessage);
     MessagePtr _msg(new Message);
+    boost::thread _stdin_thread;
 
     boost::unique_lock<boost::mutex> _lock(finish_flag_mutex);
     boost::unique_lock<boost::mutex> _stdio_lock(stdio_mutex);
@@ -118,17 +146,30 @@ void SendThread(boost::weak_ptr<Server> _server_ptr,
            _nickname.get(),
            strlen(_nickname.get()) > 0x10 ? 0x10 : strlen(_nickname.get()));
 
+    _stdin_thread = boost::thread(boost::bind(StdInThread,
+                                              _parsed_msg->parsed.cat_m.message,
+                                              0x200,
+                                              _stdin_cv));
+
     while (!finish_flag) {
         _lock.unlock();
 
         _stdio_lock.lock();
         printf("%s >> ", _nickname.get());
+        fflush(stdout);
         _stdio_lock.unlock();
 
-        fgets(_parsed_msg->parsed.cat_m.message,
-              0x200,
-              stdin);
-        _parsed_msg->parsed.cat_m.message[0x200] = '\0';
+        _lock.lock();
+        _stdin_cv->wait(_lock);
+
+        if (finish_flag) {
+            _stdin_thread.interrupt();
+            // do not join the stdin thread, it's very rude! but it works
+            // _stdin_thread.join();
+            break;
+        }
+
+        _lock.unlock();
 
         std::size_t _l = strlen(_parsed_msg->parsed.cat_m.message);
 
@@ -181,10 +222,12 @@ int main(int argc, char **argv)
                        _connection_cv,
                        _thread_pool,
                        _port)); // server instance
-    boost::mutex _m;    // mutex for conditionals
+    boost::mutex _m;    // dumb mutex for conditionals
+    boost::shared_ptr<boost::condition_variable> _stdio_cv(new boost::condition_variable);
 
     boost::asio::signal_set _signals(*_io_service, SIGINT, SIGTERM);
-    _signals.async_wait(boost::bind(Signal_INT_TERM_handler, _1, _2, _server));
+    _signals.async_wait(boost::bind(Signal_INT_TERM_handler,
+                                    _1, _2, _server, _stdio_cv));
 
     _server->Listen();
 
@@ -213,11 +256,13 @@ int main(int argc, char **argv)
         _thread_group.create_thread(boost::bind(RecvThread,
                                                 boost::weak_ptr<Server>(_server),
                                                 _msg_cv,
-                                                _nickname_ptr));
+                                                _nickname_ptr,
+                                                _stdio_cv));
 
         _thread_group.create_thread(boost::bind(SendThread,
                                                 _server,
-                                                _nickname_ptr));
+                                                _nickname_ptr,
+                                                _stdio_cv));
 
         _thread_group.join_all();
     }
