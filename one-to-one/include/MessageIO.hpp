@@ -273,15 +273,31 @@ protected:
 class MessageIOUDP : virtual public MessageIO {
 public:
     MessageIOUDP(boost::weak_ptr<boost::condition_variable> _app_cv,
-                 boost::shared_ptr<boost::asio::io_service> &_io_service) :
+                 boost::shared_ptr<boost::asio::io_service> &_io_service,
+                 unsigned short _port) :
         MessageIO(_app_cv),
         m_io_service(_io_service),
-        m_socket(*_io_service)
+        m_socket(*m_io_service,
+                 boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(),
+                                                _port))
     {
+        m_local = m_socket.local_endpoint();
     }
 
 protected:
     /********** functions ***********/
+    /*!
+     * \brief callback for network part whenever it receives message
+     * actually it is async_receive callback
+     * (default implementation)
+     */
+    virtual
+    void _MsgReceived(const boost::system::error_code& e,
+                      std::size_t _bytes,
+                      MessagePtr _msg) {
+        MessageIO::_MsgReceived(e, _bytes, _msg);
+    }
+
     /*!
      * \brief API to start receiving messages
      */
@@ -338,7 +354,7 @@ protected:
             offset += _m->length;
 
             m_socket.async_send_to(boost::asio::buffer(_m->msg.get(), _m->length),
-                                   m_remote,
+                                   m_remote_to_talk,
                                    0, // flags
                                    boost::bind(&MessageIOUDP::_MsgSent,
                                                this,
@@ -351,7 +367,7 @@ protected:
         }
 
         m_socket.async_send_to(boost::asio::buffer(_msg->msg.get(), _msg->length),
-                               m_remote,
+                               m_remote_to_talk,
                                0, // flags
                                boost::bind(&MessageIOUDP::_MsgSent,
                                            this,
@@ -364,7 +380,11 @@ protected:
     /// socket to send and receive data with
     boost::asio::ip::udp::socket m_socket;
     /// remote endpoint to talk with
+    boost::asio::ip::udp::endpoint m_remote_to_talk;
+    /// remote that sent a message
     boost::asio::ip::udp::endpoint m_remote;
+    /// local endpoint (mainly to keep port number)
+    boost::asio::ip::udp::endpoint m_local;
 };
 
 #endif // MESSAGEIO_HPP
