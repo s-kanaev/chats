@@ -94,11 +94,11 @@ public:
      * \brief ClientUDP constructor
      * \param _app_cv conditional to notify user about new message with
      * \param _io_service io_service to use
-     * \param _connection_cv conditional to notify user about connection with
+     * \param _port local port to use
      */
     ClientUDP(boost::weak_ptr<boost::condition_variable> _app_cv,
               boost::shared_ptr<boost::asio::io_service> &_io_service,
-              boost::weak_ptr<boost::condition_variable> _connection_cv);
+              unsigned short _port);
 
     /*!
      * \brief set remote to talk with
@@ -121,6 +121,11 @@ public:
 
 protected:
     void _ShutdownSocket();
+
+    virtual void
+    _MsgReceived(const boost::system::error_code &e,
+                 std::size_t _bytes,
+                 MessagePtr _msg);
 
     /// io_service
     boost::shared_ptr<boost::asio::io_service> m_io_service;

@@ -113,9 +113,9 @@ ClientTCP::IsConnected() const
 
 ClientUDP::ClientUDP(boost::weak_ptr<boost::condition_variable> _app_cv,
                      boost::shared_ptr<boost::asio::io_service> &_io_service,
-                     boost::weak_ptr<boost::condition_variable> _connection_cv) :
+                     unsigned short _port) :
     MessageIO(_app_cv),
-    _ParentClass(_app_cv, _io_service),
+    _ParentClass(_app_cv, _io_service, _port),
     m_io_service(_io_service)
 {
 }
@@ -138,7 +138,7 @@ ClientUDP::SetRemote(std::string _address, unsigned short _port)
     boost::asio::ip::udp::resolver::query _q(_address, std::to_string(_port));
     boost::asio::ip::udp::resolver::iterator _it = _r.resolve(_q);
 
-    m_remote = _it->endpoint();
+    m_remote_to_talk = _it->endpoint();
 
     m_remote_set = true;
 }
@@ -154,4 +154,15 @@ ClientUDP::SendMsg(MessagePtr _msg)
 {
     if (!m_remote_set) return;
     _ParentClass::SendMsg(_msg);
+}
+
+void
+ClientUDP::_MsgReceived(const boost::system::error_code &e,
+                        std::size_t _bytes,
+                        MessagePtr _msg)
+{
+    if ((m_remote.port() == m_remote_to_talk.port()) &&
+        (m_remote.address().to_string() == m_remote_to_talk.address().to_string())) {
+        _ParentClass::_MsgReceived(e, _bytes, _msg);
+    }
 }
