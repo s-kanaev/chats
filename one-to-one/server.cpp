@@ -211,7 +211,7 @@ int main(int argc, char **argv)
     boost::shared_ptr<boost::asio::io_service> _io_service(
             new boost::asio::io_service());
     boost::shared_ptr<ThreadPool> _thread_pool(
-            new ThreadPool(10, _io_service));
+            new ThreadPool(4, _io_service)); // 4 = net_io(2) + stdin(1) + signals(1)
     boost::shared_ptr<boost::condition_variable>
             _connection_cv(new boost::condition_variable),
             _msg_cv(new boost::condition_variable); // msg recv cv, connection cv
