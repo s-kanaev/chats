@@ -3,3 +3,7 @@
 *~
 *sw?
 build
+*.user
+*.user*
+*.kdev4
+kdev4
