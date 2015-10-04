@@ -6,36 +6,35 @@
 /* common facilities (data structures and algorithms) */
 
 /* bidirected list */
-typedef struct bidirected_list {
-    struct bidirected_list *prev;
-    struct bidirected_list *next;
-} bidirected_list_t;
+typedef struct list_entry {
+    struct list_entry *prev;                                ///< = NULL if first
+    struct list_entry *next;                                ///< = NULL if last
+} list_entry_t;
 
 /** Common usage:
  * \code{c}
  * struct Contatiner {
- *   bidirected_list_t list;
+ *   list_entry_t le;
  *   ... some contained data ...
  * };
  * \endcode
  */
 
-/* list allocators/deallocators */
-# define ALLOCATE(typename) (typename *)malloc(sizeof(typename))
-# define DEALLOCATE(x) do { free(x); } while (0)
-# define ADD_TO_LIST(end, typename, element) \
-    do {                                     \
-        typename *x = ALLOCATE(typename);    \
-        x.element.prev = end;                \
-        end.element.next = x;                \
-    } while (0)
-# define REMOVE_FROM_LIST(pos, element)                    \
-    do {                                                   \
-        struct bidirected_list_t *prev = pos.element.prev; \
-        struct bidirected_list_t *next = pos.element.next; \
-        prev.next = next;                                  \
-        next.prev = prev;                                  \
-        DEALLOCATE(pos);                                   \
-    } while (0)
+void *allocate(size_t size);
+void deallocate(void *d);
+
+/* list operations */
+/** allocate first element of size = \ref size > sizeof(list_entry_t) */
+void *list_init(size_t size);
+/** add after \ref le an element of size \ref size
+ * \return ptr to new element
+ */
+void *list_add(list_entry_t *le, size_t size);
+/** remove element from list
+ * \return ptr to next element
+ */
+void *remove_from_list(list_entry_t *le);
+/** purge list from \ref head. call \ref func right before each removal */
+void purge_list(list_entry_t *head, void (*func)(void *));
 
 #endif /* _COMMON_LIB_H_ */
