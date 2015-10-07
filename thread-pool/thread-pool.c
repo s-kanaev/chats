@@ -97,6 +97,7 @@ thread_pool_t *thread_pool_init(size_t thread_count) {
     thread_descr_t *td;
 
     tp->queue_head = tp->queue_tail = NULL;
+    tp->queue_size = 0;
 
     pthread_mutex_init(&tp->job_mutex, NULL);
     pthread_cond_init(&tp->job_semaphore, NULL);
