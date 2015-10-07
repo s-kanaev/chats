@@ -8,7 +8,7 @@
 #define JOB_COUNT 100
 
 static void r(void *ctx) {
-    fprintf(stderr, "%s: %d\n", __func__, (int)ctx);
+    fprintf(stdout, "%s: %d\n", __func__, (int)ctx);
 }
 
 int main(void) {
@@ -16,6 +16,7 @@ int main(void) {
     size_t idx;
 
     for (idx = 0; idx < JOB_COUNT; ++idx) {
+        fprintf(stderr, "Posting: %lu job\n", idx);
         thread_pool_post_job(tp, r, (void *)idx);
     }
 
