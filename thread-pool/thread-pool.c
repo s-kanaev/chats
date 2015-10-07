@@ -26,8 +26,34 @@ struct thread_pool {
     thread_descr_t *thread_descr;
 };
 
-static void push_job(thread_pool_t *tp, job_function_t job, void *ctx);
-static void get_and_pop_job(thread_pool_t *tp, job_function_t *job, void **ctx);
+static void push_job(thread_pool_t *tp, job_function_t job, void *ctx) {
+    list_entry_t *tail = &tp->queue_tail->le;
+    job_t *new_job = list_add(tail, sizeof(job_t));
+
+    if (NULL == new_job) return;
+
+    new_job->job = job;
+    new_job->ctx = ctx;
+    tp->queue_tail = new_job;
+}
+
+static void get_and_pop_job(thread_pool_t *tp, job_function_t *job, void **ctx) {
+    job_t *head = tp->queue_head;
+    if (!head) {
+        *job = NULL;
+        *ctx = NULL;
+        return;
+    }
+
+    *job = head->job;
+    *ctx = head->ctx;
+
+    head = remove_from_list((list_entry_t *)head);
+
+    tp->queue_head = head;
+
+    if (!head) tp->queue_tail = NULL;
+}
 
 static void *worker_tpl(void *_tp) {
     thread_pool_t *tp = (thread_pool_t *)_tp;
