@@ -18,7 +18,7 @@ void *list_init(size_t size) {
 }
 
 void *list_add(list_entry_t *le, size_t size) {
-    if (!le) return list_init(le, size);
+    if (!le) return list_init(size);
 
     list_entry_t *new_le = allocate(size);
     new_le->next = le->next;
