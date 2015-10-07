@@ -4,9 +4,26 @@
 #include <stdbool.h>
 #include <pthread.h>
 
+struct job {
+    list_entry_t le;
+    job_function_t job;
+    void *ctx;
+};
+
 struct thread_descr {
     pthread_attr_t attr;
     pthread_t id;
+};
+
+struct thread_pool {
+    job_t *queue_head;
+    job_t *queue_tail;                                      ///< append jobs here
+    size_t queue_size;
+    pthread_mutex_t job_mutex;                              ///< queue access mtx
+    pthread_cond_t job_semaphore;                           ///< thread run semaphore
+    bool run;                                               ///< should threads run any more
+    size_t thread_count;
+    thread_descr_t *thread_descr;
 };
 
 static void push_job(thread_pool_t *tp, job_function_t job, void *ctx);
