@@ -225,26 +225,7 @@ void io_service_run(io_service_t *iosvc) {
                 ctx = lte->job[op].ctx;
 
                 lte->job[op].job = NULL;
-#if 0
 
-                for (idx = 0; idx < IO_SVC_OP_COUNT; ++idx)
-                    if (lte->job[idx].job != NULL)
-                        events |= OP_FLAGS[idx];
-
-                if (events == 0) {
-                    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, NULL);
-                    remove_from_list((list_entry_t *)lte);
-
-                    if (-- iosvc->lookup_table_size) iosvc->lookup_table = NULL;
-                }
-                else {
-                    struct epoll_event event;
-                    memset(&event, 0, sizeof(event));
-                    event.events = events;
-                    epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &event);
-                }
-
-#endif
                 pthread_mutex_unlock(mutex);
                 (*job)(fd, op, ctx);
                 pthread_mutex_lock(mutex);
