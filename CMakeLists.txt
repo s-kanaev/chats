@@ -7,6 +7,7 @@ add_definitions("-g -O0")
 include_directories(common)
 include_directories(thread-pool)
 include_directories(coroutine)
+include_directories(io-service)
 
 add_subdirectory(common)
 add_subdirectory(thread-pool)

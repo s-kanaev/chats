@@ -1,6 +1,8 @@
 #include "io-service.h"
 #include "lib.h"
 
+#include <stdio.h>
+
 #include <stdbool.h>
 #include <pthread.h>
 #include <unistd.h>
@@ -127,6 +129,7 @@ void io_service_post_job(io_service_t *iosvc,
                          void *ctx) {
     pthread_mutex_lock(&iosvc->object_mutex);
 
+    fprintf(stderr, "Posting job: %d, %d\n", fd, (int)op);
     if (iosvc->allow_new) {
         job_t *new_job;
 
@@ -147,6 +150,8 @@ void io_service_post_job(io_service_t *iosvc,
                 lte->event.events |= OP_FLAGS[op];
                 lte->job[op].job = job;
                 lte->job[op].ctx = ctx;
+
+                iosvc->lookup_table = lte;
 
                 notify_svc(iosvc->event_fd);
             }
@@ -172,7 +177,9 @@ void io_service_run(io_service_t *iosvc) {
     pthread_mutex_lock(mutex);
     while (*running) {
         /* refresh epoll fd list */
+        fprintf(stderr, "Lookup table ptr: %p\n", iosvc->lookup_table);
         for (lte = iosvc->lookup_table; lte;) {
+            fprintf(stderr, "  Checking: %d -> %lu\n", lte->fd, (unsigned long)(lte->event.events));
             if (lte->event.events == 0) {
                 epoll_ctl(epoll_fd, EPOLL_CTL_DEL, lte->fd, NULL);
                 lte = remove_from_list((list_entry_t *)lte);
@@ -185,7 +192,10 @@ void io_service_run(io_service_t *iosvc) {
                 continue;
             }
 
-            epoll_ctl(epoll_fd, EPOLL_CTL_MOD, lte->fd, &lte->event);
+            if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, lte->fd, &lte->event)) {
+                if (errno == ENOENT)
+                    epoll_ctl(epoll_fd, EPOLL_CTL_ADD, lte->fd, &lte->event);
+            }
 
             lte = (lookup_table_element_t *)lte->le.next;
         }
