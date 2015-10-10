@@ -6,7 +6,7 @@
 
 struct job {
     list_entry_t le;
-    job_function_t job;
+    tp_job_function_t job;
     void *ctx;
 };
 
@@ -28,7 +28,7 @@ struct thread_pool {
     thread_descr_t *thread_descr;
 };
 
-static void push_job(thread_pool_t *tp, job_function_t job, void *ctx) {
+static void push_job(thread_pool_t *tp, tp_job_function_t job, void *ctx) {
     list_entry_t *tail = &tp->queue_tail->le;
     job_t *new_job = list_add(tail, sizeof(job_t));
 
@@ -44,7 +44,7 @@ static void push_job(thread_pool_t *tp, job_function_t job, void *ctx) {
     ++tp->queue_size;
 }
 
-static void get_and_pop_job(thread_pool_t *tp, job_function_t *job, void **ctx) {
+static void get_and_pop_job(thread_pool_t *tp, tp_job_function_t *job, void **ctx) {
     job_t *head = tp->queue_head;
     if (!head) {
         *job = NULL;
@@ -70,7 +70,7 @@ static void *worker_tpl(void *_tp) {
     thread_pool_t *tp = (thread_pool_t *)_tp;
     pthread_mutex_t *job_mutex = &tp->job_mutex;
     pthread_cond_t *job_semaphore = &tp->job_semaphore;
-    job_function_t job;
+    tp_job_function_t job;
     void *ctx;
 
     while (true) {
@@ -148,7 +148,7 @@ void thread_pool_stop(thread_pool_t *tp, bool wait_for_stop) {
     deallocate(tp);
 }
 
-void thread_pool_post_job(thread_pool_t *tp, job_function_t job, void *ctx) {
+void thread_pool_post_job(thread_pool_t *tp, tp_job_function_t job, void *ctx) {
     pthread_mutex_lock(&tp->job_mutex);
     if (tp->allow_new_jobs) {
         push_job(tp, job, ctx);

@@ -4,10 +4,9 @@
 # include "lib.h"
 
 # include <stdbool.h>
-# include <pthread.h>
 
 /* Thread pool facilities */
-typedef void (*job_function_t)(void *);
+typedef void (*tp_job_function_t)(void *);
 
 struct job;
 typedef struct job job_t;
@@ -20,6 +19,6 @@ typedef struct thread_pool thread_pool_t;
 
 thread_pool_t *thread_pool_init(size_t thread_count);
 void thread_pool_stop(thread_pool_t *tp, bool wait_for_stop);
-void thread_pool_post_job(thread_pool_t *tp, job_function_t job, void *ctx);
+void thread_pool_post_job(thread_pool_t *tp, tp_job_function_t job, void *ctx);
 
 #endif /* _THREAD_POOL_ */
