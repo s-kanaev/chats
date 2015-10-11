@@ -4,16 +4,16 @@
 #include <stdbool.h>
 #include <pthread.h>
 
-struct job {
+typedef struct job {
     list_entry_t le;
     tp_job_function_t job;
     void *ctx;
-};
+} job_t;
 
-struct thread_descr {
+typedef struct thread_descr {
     pthread_attr_t attr;
     pthread_t id;
-};
+} thread_descr_t;
 
 struct thread_pool {
     job_t *queue_head;

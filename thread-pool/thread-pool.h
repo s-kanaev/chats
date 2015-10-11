@@ -8,12 +8,6 @@
 /* Thread pool facilities */
 typedef void (*tp_job_function_t)(void *);
 
-struct job;
-typedef struct job job_t;
-
-struct thread_descr;
-typedef struct thread_descr thread_descr_t;
-
 struct thread_pool;
 typedef struct thread_pool thread_pool_t;
 
