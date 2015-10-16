@@ -235,3 +235,28 @@ void io_service_run(io_service_t *iosvc) {
 
     pthread_mutex_unlock(mutex);
 }
+
+void io_service_remove_job(io_service_t *iosvc,
+                           int fd, io_svc_op_t op,
+                           iosvc_job_function_t job, void *ctx) {
+    lookup_table_element_t *lte;
+    bool done = false;
+
+    pthread_mutex_lock(&iosvc->object_mutex);
+
+    for (lte = iosvc->lookup_table; lte;) {
+        if (lte->fd == fd)
+            if (lte->job[op].job == job && lte->job[op].ctx == ctx) {
+                lte->job[op].job = NULL;
+                lte->job[op].ctx = NULL;
+                lte->event.events &= ~OP_FLAGS[op];
+                done = true;
+                break;
+            }
+
+        lte = (lookup_table_element_t *)lte->le.next;
+    }
+
+    if (done) notify_svc(iosvc->event_fd);
+    pthread_mutex_unlock(&iosvc->object_mutex);
+}

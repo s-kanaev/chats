@@ -28,5 +28,8 @@ void io_service_post_job(io_service_t *iosvc,
                          int fd, io_svc_op_t op,
                          iosvc_job_function_t job, void *ctx);
 void io_service_run(io_service_t *iosvc);
+void io_service_remove_job(io_service_t *iosvc,
+                           int fd, io_svc_op_t op,
+                           iosvc_job_function_t job, void *ctx);
 
 #endif /* _IO_SERVICE_H_ */
