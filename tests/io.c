@@ -1,12 +1,12 @@
+#include "io-service.h"
+#include "thread-pool.h"
+#include "common.h"
+
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
 #include <pthread.h>
 #include <unistd.h>
-
-#include "io-service.h"
-#include "thread-pool.h"
-#include "common.h"
 
 #define THREAD_COUNT 2
 #define JOB_COUNT 100
