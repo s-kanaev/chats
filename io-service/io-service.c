@@ -1,5 +1,5 @@
 #include "io-service.h"
-#include "lib.h"
+#include "common.h"
 
 #include <stdbool.h>
 #include <pthread.h>
@@ -116,7 +116,7 @@ void io_service_deinit(io_service_t *iosvc) {
     close(iosvc->event_fd);
     close(iosvc->epoll_fd);
 
-    purge_list((list_entry_t *)iosvc->lookup_table, NULL);
+    list_purge((list_entry_t *)iosvc->lookup_table, NULL);
 
     deallocate(iosvc);
 }
@@ -138,7 +138,7 @@ void io_service_post_job(io_service_t *iosvc,
 
         if (!lte || lte->job[op].job == NULL) {
             if (!lte) {
-                lte = list_add((list_entry_t *)iosvc->lookup_table,
+                lte = list_add_element((list_entry_t *)iosvc->lookup_table,
                                sizeof(lookup_table_element_t));
                 ++ iosvc->lookup_table_size;
             }
@@ -177,7 +177,7 @@ void io_service_run(io_service_t *iosvc) {
         for (lte = iosvc->lookup_table; lte;) {
             if (lte->event.events == 0) {
                 epoll_ctl(epoll_fd, EPOLL_CTL_DEL, lte->fd, NULL);
-                lte = remove_from_list((list_entry_t *)lte);
+                lte = list_remove_element((list_entry_t *)lte);
 
                 if (-- iosvc->lookup_table_size) {
                     iosvc->lookup_table_size = 0;
@@ -234,4 +234,29 @@ void io_service_run(io_service_t *iosvc) {
     }
 
     pthread_mutex_unlock(mutex);
+}
+
+void io_service_remove_job(io_service_t *iosvc,
+                           int fd, io_svc_op_t op,
+                           iosvc_job_function_t job, void *ctx) {
+    lookup_table_element_t *lte;
+    bool done = false;
+
+    pthread_mutex_lock(&iosvc->object_mutex);
+
+    for (lte = iosvc->lookup_table; lte;) {
+        if (lte->fd == fd)
+            if (lte->job[op].job == job && lte->job[op].ctx == ctx) {
+                lte->job[op].job = NULL;
+                lte->job[op].ctx = NULL;
+                lte->event.events &= ~OP_FLAGS[op];
+                done = true;
+                break;
+            }
+
+        lte = (lookup_table_element_t *)lte->le.next;
+    }
+
+    if (done) notify_svc(iosvc->event_fd);
+    pthread_mutex_unlock(&iosvc->object_mutex);
 }

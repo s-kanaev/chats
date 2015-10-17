@@ -1,14 +1,5 @@
-#include "lib.h"
-
-#include <stdlib.h>
-
-void *allocate(size_t size) {
-    return malloc(size);
-}
-
-void deallocate(void *d) {
-    return free(d);
-}
+#include "list.h"
+#include "memory.h"
 
 void *list_init(size_t size) {
     list_entry_t *head = allocate(size);
@@ -17,7 +8,7 @@ void *list_init(size_t size) {
     return (void *)head;
 }
 
-void *list_add(list_entry_t *le, size_t size) {
+void *list_add_element(list_entry_t *le, size_t size) {
     if (!le) return list_init(size);
 
     list_entry_t *new_le = allocate(size);
@@ -30,7 +21,7 @@ void *list_add(list_entry_t *le, size_t size) {
     return (void *)new_le;
 }
 
-void *remove_from_list(list_entry_t *le) {
+void *list_remove_element(list_entry_t *le) {
     if (!le) return NULL;
 
     list_entry_t *prev = le->prev;
@@ -44,7 +35,7 @@ void *remove_from_list(list_entry_t *le) {
     return next;
 }
 
-void purge_list(list_entry_t *head, void (*function) (void *)) {
+void list_purge(list_entry_t *head, void (*function) (void *)) {
     list_entry_t *le;
 
     if (!head) return;

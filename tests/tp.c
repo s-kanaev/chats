@@ -2,7 +2,7 @@
 #include <stdbool.h>
 
 #include "thread-pool.h"
-#include "lib.h"
+#include "common.h"
 
 #define THREAD_COUNT 10
 #define JOB_COUNT 100

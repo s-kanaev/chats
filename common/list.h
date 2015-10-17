@@ -20,21 +20,20 @@ typedef struct list_entry {
  * \endcode
  */
 
-void *allocate(size_t size);
-void deallocate(void *d);
-
 /* list operations */
 /** allocate first element of size = \ref size > sizeof(list_entry_t) */
 void *list_init(size_t size);
 /** add after \ref le an element of size \ref size
  * \return ptr to new element
  */
-void *list_add(list_entry_t *le, size_t size);
+void *list_add_element(list_entry_t *le, size_t size);
 /** remove element from list
  * \return ptr to next element
  */
-void *remove_from_list(list_entry_t *le);
+void *list_remove_element(list_entry_t *le);
 /** purge list from \ref head. call \ref func right before each removal */
-void purge_list(list_entry_t *head, void (*func)(void *));
+void list_purge(list_entry_t *head, void (*func)(void *));
+
+
 
 #endif /* _COMMON_LIB_H_ */
