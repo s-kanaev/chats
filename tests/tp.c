@@ -5,7 +5,7 @@
 #include "common.h"
 
 #define THREAD_COUNT 10
-#define JOB_COUNT 100
+#define JOB_COUNT 1000
 
 static void r(void *ctx) {
     fprintf(stdout, "%s: %d\n", __func__, (int)ctx);

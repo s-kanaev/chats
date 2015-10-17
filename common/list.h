@@ -1,39 +1,24 @@
 #ifndef _COMMON_LIB_H_
 #define _COMMON_LIB_H_
 
-# include <stdlib.h>
+# include <stddef.h>
 
-/* common facilities (data structures and algorithms) */
+struct list;
+typedef struct list list_t;
 
-/* bidirected list */
-typedef struct list_entry {
-    struct list_entry *prev;                                ///< = NULL if first
-    struct list_entry *next;                                ///< = NULL if last
-} list_entry_t;
-
-/** Common usage:
- * \code{c}
- * struct Contatiner {
- *   list_entry_t le;
- *   ... some contained data ...
- * };
- * \endcode
- */
-
-/* list operations */
-/** allocate first element of size = \ref size > sizeof(list_entry_t) */
-void *list_init(size_t size);
-/** add after \ref le an element of size \ref size
- * \return ptr to new element
- */
-void *list_add_element(list_entry_t *le, size_t size);
-/** remove element from list
- * \return ptr to next element
- */
-void *list_remove_element(list_entry_t *le);
-/** purge list from \ref head. call \ref func right before each removal */
-void list_purge(list_entry_t *head, void (*func)(void *));
-
-
+list_t *list_init(size_t element_size);
+void* list_append(list_t *l);
+void* list_prepend(list_t *l);
+void* list_add_after(list_t *l, void *el);
+void* list_add_before(list_t *l, void *el);
+void* list_remove_next(list_t *l, void *el);
+void* list_remove_prev(list_t *l, void *el);
+void list_remove_element(list_t *l, void *el);
+void* list_first_element(list_t *l);
+void* list_last_element(list_t *l);
+void* list_next_element(list_t *l, void *el);
+void* list_prev_element(list_t *l, void *el);
+size_t list_size(list_t *l);
+void* list_deinit(list_t *l);
 
 #endif /* _COMMON_LIB_H_ */

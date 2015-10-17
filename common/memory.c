@@ -20,7 +20,7 @@ static const buffer_realloc_t *buffer_realocator[buffer_policy_count] = {
 };
 
 void *allocate(size_t size) {
-    return malloc(size);
+    return malloc(size);;
 }
 
 void deallocate(void *d) {

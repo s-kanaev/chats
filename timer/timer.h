@@ -2,6 +2,7 @@
 # define _TIMER_H_
 
 # include "io-service.h"
+# include <time.h>
 
 typedef void (*tmr_job_t)(void *ctx);
 
