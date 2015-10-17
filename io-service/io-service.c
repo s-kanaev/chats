@@ -1,5 +1,5 @@
 #include "io-service.h"
-#include "lib.h"
+#include "common.h"
 
 #include <stdbool.h>
 #include <pthread.h>
@@ -116,7 +116,7 @@ void io_service_deinit(io_service_t *iosvc) {
     close(iosvc->event_fd);
     close(iosvc->epoll_fd);
 
-    purge_list((list_entry_t *)iosvc->lookup_table, NULL);
+    list_purge((list_entry_t *)iosvc->lookup_table, NULL);
 
     deallocate(iosvc);
 }
@@ -138,7 +138,7 @@ void io_service_post_job(io_service_t *iosvc,
 
         if (!lte || lte->job[op].job == NULL) {
             if (!lte) {
-                lte = list_add((list_entry_t *)iosvc->lookup_table,
+                lte = list_add_element((list_entry_t *)iosvc->lookup_table,
                                sizeof(lookup_table_element_t));
                 ++ iosvc->lookup_table_size;
             }
@@ -177,7 +177,7 @@ void io_service_run(io_service_t *iosvc) {
         for (lte = iosvc->lookup_table; lte;) {
             if (lte->event.events == 0) {
                 epoll_ctl(epoll_fd, EPOLL_CTL_DEL, lte->fd, NULL);
-                lte = remove_from_list((list_entry_t *)lte);
+                lte = list_remove_element((list_entry_t *)lte);
 
                 if (-- iosvc->lookup_table_size) {
                     iosvc->lookup_table_size = 0;

@@ -1,5 +1,5 @@
 #include "thread-pool.h"
-#include "lib.h"
+#include "common.h"
 
 #include <stdbool.h>
 #include <pthread.h>
@@ -30,7 +30,7 @@ struct thread_pool {
 
 static void push_job(thread_pool_t *tp, tp_job_function_t job, void *ctx) {
     list_entry_t *tail = &tp->queue_tail->le;
-    job_t *new_job = list_add(tail, sizeof(job_t));
+    job_t *new_job = list_add_element(tail, sizeof(job_t));
 
     if (NULL == new_job) return;
 
@@ -55,7 +55,7 @@ static void get_and_pop_job(thread_pool_t *tp, tp_job_function_t *job, void **ct
     *job = head->job;
     *ctx = head->ctx;
 
-    head = remove_from_list((list_entry_t *)head);
+    head = list_remove_element((list_entry_t *)head);
 
     tp->queue_head = head;
 
@@ -144,7 +144,7 @@ void thread_pool_stop(thread_pool_t *tp, bool wait_for_stop) {
     pthread_cond_destroy(&tp->job_end_semaphore);
 
     deallocate(tp->thread_descr);
-    purge_list((list_entry_t *)(tp->queue_head), NULL);
+    list_purge((list_entry_t *)(tp->queue_head), NULL);
     deallocate(tp);
 }
 

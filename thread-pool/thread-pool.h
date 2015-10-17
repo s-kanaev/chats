@@ -1,7 +1,7 @@
 #ifndef _THREAD_POOL_
 #define _THREAD_POOL_
 
-# include "lib.h"
+# include "common.h"
 
 # include <stdbool.h>
 

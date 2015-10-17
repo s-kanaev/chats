@@ -6,7 +6,7 @@
 
 #include "io-service.h"
 #include "thread-pool.h"
-#include "lib.h"
+#include "common.h"
 
 #define THREAD_COUNT 2
 #define JOB_COUNT 100
