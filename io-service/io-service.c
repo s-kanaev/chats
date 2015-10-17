@@ -8,9 +8,12 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <string.h>
+#include <assert.h>
 
 #include <sys/eventfd.h>
 #include <sys/epoll.h>
+
+#include <stdio.h>
 
 typedef struct job {
     iosvc_job_function_t job;
@@ -18,7 +21,6 @@ typedef struct job {
 } job_t;
 
 typedef struct lookup_table_element {
-    list_entry_t le;
     int fd;
     struct epoll_event event;
     job_t job[IO_SVC_OP_COUNT];
@@ -31,8 +33,7 @@ struct io_service {
     /* used for notification purposes */
     int event_fd;
     /* job list by fd lookup table  */
-    lookup_table_element_t *lookup_table;
-    size_t lookup_table_size;
+    list_t *lookup_table;
 
     int epoll_fd;
     struct epoll_event event_fd_event;
@@ -78,8 +79,7 @@ io_service_t *io_service_init() {
         return NULL;
     }
 
-    iosvc->lookup_table_size = 0;
-    iosvc->lookup_table = NULL;
+    iosvc->lookup_table = list_init(sizeof(struct lookup_table_element));
     iosvc->allow_new = iosvc->running = true;
 
     iosvc->epoll_fd = epoll_create1(EPOLL_CLOEXEC);
@@ -116,7 +116,7 @@ void io_service_deinit(io_service_t *iosvc) {
     close(iosvc->event_fd);
     close(iosvc->epoll_fd);
 
-    list_purge((list_entry_t *)iosvc->lookup_table, NULL);
+    list_deinit(iosvc->lookup_table);
 
     deallocate(iosvc);
 }
@@ -131,27 +131,24 @@ void io_service_post_job(io_service_t *iosvc,
         job_t *new_job;
 
         lookup_table_element_t *lte;
-        for (lte = iosvc->lookup_table;
+        for (lte = list_first_element(iosvc->lookup_table);
              lte;
-             lte = (lookup_table_element_t *)lte->le.next)
+             lte = list_next_element(iosvc->lookup_table, lte))
             if (lte->fd == fd) break;
 
         if (!lte || lte->job[op].job == NULL) {
             if (!lte) {
-                lte = list_add_element((list_entry_t *)iosvc->lookup_table,
-                               sizeof(lookup_table_element_t));
-                ++ iosvc->lookup_table_size;
+                lte = list_append(iosvc->lookup_table);
+                lte->event.data.fd = lte->fd = fd;
             }
 
-            if (lte) {
-                lte->event.events |= OP_FLAGS[op];
-                lte->job[op].job = job;
-                lte->job[op].ctx = ctx;
+            assert(lte);
 
-                iosvc->lookup_table = lte;
+            lte->event.events |= OP_FLAGS[op];
+            lte->job[op].job = job;
+            lte->job[op].ctx = ctx;
 
-                notify_svc(iosvc->event_fd);
-            }
+            notify_svc(iosvc->event_fd);
         }
     }
 
@@ -167,36 +164,30 @@ void io_service_run(io_service_t *iosvc) {
     int r, fd;
     ssize_t idx;
     io_svc_op_t op;
-    lookup_table_element_t *lte;
+    lookup_table_element_t *lte, *prev_lte;
     iosvc_job_function_t job;
     void *ctx;
 
     pthread_mutex_lock(mutex);
     while (*running) {
         /* refresh epoll fd list */
-        for (lte = iosvc->lookup_table; lte;) {
+        for (lte = list_first_element(iosvc->lookup_table); lte;) {
             if (lte->event.events == 0) {
                 epoll_ctl(epoll_fd, EPOLL_CTL_DEL, lte->fd, NULL);
-                lte = list_remove_element((list_entry_t *)lte);
-
-                if (-- iosvc->lookup_table_size) {
-                    iosvc->lookup_table_size = 0;
-                    break;
-                }
-
+                lte = list_remove_next(iosvc->lookup_table, lte);
                 continue;
             }
 
-            if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, lte->fd, &lte->event)) {
+            if (epoll_ctl(epoll_fd, EPOLL_CTL_MOD, lte->fd, &lte->event))
                 if (errno == ENOENT)
                     epoll_ctl(epoll_fd, EPOLL_CTL_ADD, lte->fd, &lte->event);
-            }
 
-            lte = (lookup_table_element_t *)lte->le.next;
+            lte = list_next_element(iosvc->lookup_table, lte);
         }
 
         pthread_mutex_unlock(mutex);
         r = epoll_wait(epoll_fd, &event, 1, -1);
+//         fprintf(stderr, "trigger: (r - %d) fd: %d (%d) - %d\n", r, event.data.fd, event_fd, event.events);
         pthread_mutex_lock(mutex);
 
         if (r < 0) continue;
@@ -211,7 +202,9 @@ void io_service_run(io_service_t *iosvc) {
         for (op = 0; op < IO_SVC_OP_COUNT; ++op) {
             if (!(event.events & OP_FLAGS[op])) continue;
 
-            for (lte = iosvc->lookup_table; lte; lte = (lookup_table_element_t *)lte->le.next)
+            for (lte = list_first_element(iosvc->lookup_table);
+                 lte;
+                 lte = list_next_element(iosvc->lookup_table, lte))
                 if (lte->fd == fd) {
                     if (lte->job[op].job != NULL) break;
                     else {
@@ -225,6 +218,7 @@ void io_service_run(io_service_t *iosvc) {
                 ctx = lte->job[op].ctx;
 
                 lte->job[op].job = NULL;
+                lte->event.events &= ~OP_FLAGS[op];
 
                 pthread_mutex_unlock(mutex);
                 (*job)(fd, op, ctx);
@@ -244,7 +238,9 @@ void io_service_remove_job(io_service_t *iosvc,
 
     pthread_mutex_lock(&iosvc->object_mutex);
 
-    for (lte = iosvc->lookup_table; lte;) {
+    for (lte = list_first_element(iosvc->lookup_table);
+         lte;
+         lte = list_next_element(iosvc->lookup_table, lte))
         if (lte->fd == fd)
             if (lte->job[op].job == job && lte->job[op].ctx == ctx) {
                 lte->job[op].job = NULL;
@@ -253,9 +249,6 @@ void io_service_remove_job(io_service_t *iosvc,
                 done = true;
                 break;
             }
-
-        lte = (lookup_table_element_t *)lte->le.next;
-    }
 
     if (done) notify_svc(iosvc->event_fd);
     pthread_mutex_unlock(&iosvc->object_mutex);
