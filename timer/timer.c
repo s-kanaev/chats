@@ -8,8 +8,6 @@
 #include <time.h>
 #include <sys/timerfd.h>
 
-#include <stdio.h>
-
 typedef enum timer_class_enum {
     absolute,
     relative,
@@ -34,6 +32,11 @@ static void tmr_job_tpl(int fd, io_svc_op_t op, void *_ctx) {
     read(fd, &stub, sizeof(stub));
 
     timer->job(timer->ctx);
+
+    if (timer->tmr_class == periodic)
+        io_service_post_job(timer->master,
+                            timer->fd, IO_SVC_OP_READ,
+                            tmr_job_tpl, timer);
 }
 
 tmr_t* timer_init(io_service_t* iosvc) {
@@ -53,8 +56,6 @@ tmr_t* timer_init(io_service_t* iosvc) {
     timer->armed = false;
     timer->master = iosvc;
     timer->tmr_class = none;
-
-    io_service_post_job(iosvc, fd, IO_SVC_OP_READ, tmr_job_tpl, timer);
 
     return timer;
 }

@@ -13,8 +13,6 @@
 #include <sys/eventfd.h>
 #include <sys/epoll.h>
 
-#include <stdio.h>
-
 typedef struct job {
     iosvc_job_function_t job;
     void *ctx;
@@ -187,7 +185,6 @@ void io_service_run(io_service_t *iosvc) {
 
         pthread_mutex_unlock(mutex);
         r = epoll_wait(epoll_fd, &event, 1, -1);
-//         fprintf(stderr, "trigger: (r - %d) fd: %d (%d) - %d\n", r, event.data.fd, event_fd, event.events);
         pthread_mutex_lock(mutex);
 
         if (r < 0) continue;
