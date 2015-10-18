@@ -51,6 +51,8 @@ void *list_deinit(list_t *l) {
         el2 = el->next;
         deallocate(el);
     }
+
+    deallocate(l);
 }
 
 size_t list_size(list_t *l) {

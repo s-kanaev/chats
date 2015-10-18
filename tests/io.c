@@ -83,6 +83,7 @@ int main(void) {
     fprintf(stdout, "You've entered: %c\n", ctx.chr);
 
     pthread_mutex_destroy(&ctx.mtx);
+    timer_deinit(ctx.timer);
     io_service_deinit(ctx.iosvc);
     thread_pool_stop(ctx.tp, true);
 
