@@ -75,7 +75,7 @@ int main(void) {
 
     timer_set_periodic(ctx.timer, 1, 0, timer_cb, &ctx);
 
-    io_service_post_job(ctx.iosvc, STDIN_FILENO, IO_SVC_OP_READ, input, &ctx);
+    io_service_post_job(ctx.iosvc, STDIN_FILENO, IO_SVC_OP_READ, false, input, &ctx);
     //thread_pool_post_job(ctx.tp, progress, (void *)&ctx);
 
     io_service_run(ctx.iosvc);

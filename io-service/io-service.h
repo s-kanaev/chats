@@ -25,7 +25,7 @@ io_service_t *io_service_init();
 void io_service_stop(io_service_t *iosvc, bool wait_pending);
 void io_service_deinit(io_service_t *iosvc);
 void io_service_post_job(io_service_t *iosvc,
-                         int fd, io_svc_op_t op,
+                         int fd, io_svc_op_t op, bool oneshot,
                          iosvc_job_function_t job, void *ctx);
 void io_service_run(io_service_t *iosvc);
 void io_service_remove_job(io_service_t *iosvc,
