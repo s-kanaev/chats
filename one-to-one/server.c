@@ -217,3 +217,41 @@ void oto_server_tcp_listen_async(oto_server_tcp_t *server,
                         server);
     pthread_mutex_unlock(&server->mutex);
 }
+
+void oto_server_tcp_local_ep(oto_server_tcp_t *server, endpoint_socket_t *ep) {
+    if (!server) return;
+
+    pthread_mutex_lock(&server->mutex);
+
+    memcpy(ep, &server->local, sizeof(*ep));
+
+    pthread_mutex_unlock(&server->mutex);
+}
+
+void oto_server_tcp_remote_ep(oto_server_tcp_t *server, endpoint_socket_t *ep) {
+    if (!server) return;
+
+    pthread_mutex_lock(&server->mutex);
+
+    if (server->connected)
+        memcpy(ep, &server->remote, sizeof(*ep));
+
+    pthread_mutex_unlock(&server->mutex);
+}
+
+void oto_server_tcp_send_sync(oto_server_tcp_t *server,
+                              buffer_t *buffer,
+                              oto_send_cb_t cb, void *ctx) {
+    /* TODO */
+}
+
+
+
+
+
+
+
+
+
+
+
