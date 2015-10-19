@@ -5,6 +5,7 @@
 
 #include <assert.h>
 #include <stdbool.h>
+#include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
@@ -23,7 +24,7 @@ struct oto_server_tcp {
     endpoint_socket_t local;
     endpoint_socket_t remote;
 
-    oto_connection_cb_t *connection_cb;
+    oto_connection_cb_t connection_cb;
     void *connection_ctx;
 };
 
@@ -31,15 +32,20 @@ static
 void oto_tcp_ip4_acceptor(int fd, io_svc_op_t op, void *ctx) {
     oto_server_tcp_t *server = ctx;
     uint32_t addr;
+    socklen_t len;
 
     pthread_mutex_lock(&server->mutex);
 
-    int fd = accept(server->local.skt, &server->remote_addr, sizeof(server->remote_addr));
+    len = sizeof(server->remote_addr);
+    int afd = accept(server->local.skt,
+                     (struct sockaddr *)(&server->remote_addr),
+                     &len);
 
-    assert(fd >= 0);
+    assert(len == sizeof(server->remote_addr));
+    assert(afd >= 0);
 
     server->connected = true;
-    server->remote.skt = fd;
+    server->remote.skt = afd;
     server->remote.ep.ep_class = EPC_IP4;
     server->remote.ep.ep.ip4.port = ntohs(server->remote_addr.sin_port);
     addr = ntohl(server->remote_addr.sin_addr.s_addr);
@@ -48,7 +54,9 @@ void oto_tcp_ip4_acceptor(int fd, io_svc_op_t op, void *ctx) {
     server->remote.ep.ep.ip4.addr[2] = (addr >> 0x08) & 0xff;
     server->remote.ep.ep.ip4.addr[3] = addr & 0xff;
 
-    if (!(*server->connection_cb)(&server->remote, errno, server->connection_ctx)) {
+    if (!(*server->connection_cb)(&server->remote.ep,
+                                  errno,
+                                  server->connection_ctx)) {
         shutdown(server->remote.skt, SHUT_RDWR);
         close(server->remote.skt);
         server->connected = false;
@@ -108,7 +116,7 @@ oto_server_tcp_t *oto_server_tcp_init(io_service_t *svc,
         socket_family = AF_INET;
 
         server->local_addr.sin_family = AF_INET;
-        server->local_addr.sin_port = htons(server->local.ep.ip4.port);
+        server->local_addr.sin_port = htons(server->local.ep.ep.ip4.port);
         server->local_addr.sin_addr.s_addr = htonl(
             (server->local.ep.ep.ip4.addr[0] << 0x18) |
             (server->local.ep.ep.ip4.addr[1] << 0x10) |
