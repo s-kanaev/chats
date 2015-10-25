@@ -140,6 +140,7 @@ void io_service_post_job(io_service_t *iosvc,
             if (!lte) {
                 lte = list_append(iosvc->lookup_table);
                 lte->event.data.fd = lte->fd = fd;
+                lte->event.events = 0;
             }
 
             assert(lte);
@@ -225,17 +226,22 @@ void io_service_run(io_service_t *iosvc) {
                 job = lte->job[op].job;
                 ctx = lte->job[op].ctx;
 
-                if (!lte->job[op].oneshot) {
+                if (lte->job[op].oneshot) {
                     lte->job[op].ctx = lte->job[op].job = NULL;
                     lte->event.events &= ~OP_FLAGS[op];
+
+                    if (lte->event.events == 0) {
+                        epoll_ctl(epoll_fd, EPOLL_CTL_DEL, lte->fd, NULL);
+                        list_remove_element(iosvc->lookup_table, lte);
+                    }
                 }
 
                 pthread_mutex_unlock(mutex);
                 (*job)(fd, op, ctx);
                 pthread_mutex_lock(mutex);
             } /* if (lte) */
-        }
-    }
+        }   /* for (op = 0; op < IO_SVC_OP_COUNT; ++op) */
+    }   /* while (*running) */
 
     pthread_mutex_unlock(mutex);
 }
