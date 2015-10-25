@@ -20,7 +20,7 @@ typedef bool (*oto_connection_cb_t)(endpoint_t *ep, int err, void *ctx);
  * \param [in] buffer buffer sent
  * \param [in] ctx user context
  */
-typedef void (*oto_send_cb_t)(int err, size_t bytes, buffer_t *buffer, void *ctx);
+typedef void (*oto_send_recv_cb_t)(int err, size_t bytes, buffer_t *buffer, void *ctx);
 
 struct oto_server_tcp;
 typedef struct oto_server_tcp oto_server_tcp_t;
@@ -35,9 +35,13 @@ void oto_server_tcp_listen_async(oto_server_tcp_t *server,
                                  oto_connection_cb_t cb, void *ctx);
 void oto_server_tcp_disconnect(oto_server_tcp_t *server);
 void oto_server_tcp_send_sync(oto_server_tcp_t *server, buffer_t *buffer,
-                              oto_send_cb_t cb, void *ctx);
+                              oto_send_recv_cb_t cb, void *ctx);
 void oto_server_tcp_send_async(oto_server_tcp_t *server, buffer_t *buffer,
-                               oto_send_cb_t cb, void *ctx);
+                               oto_send_recv_cb_t cb, void *ctx);
+void oto_server_tcp_recv_sync(oto_server_tcp_t *server, buffer_t *buffer,
+                              oto_send_recv_cb_t cb, void *ctx);
+void oto_server_tcp_recv_async(oto_server_tcp_t *server, buffer_t *buffer,
+                               oto_send_recv_cb_t cb, void *ctx);
 void oto_server_tcp_local_ep(oto_server_tcp_t *server, endpoint_socket_t *ep);
 void oto_server_tcp_remote_ep(oto_server_tcp_t *server, endpoint_socket_t *ep);
 

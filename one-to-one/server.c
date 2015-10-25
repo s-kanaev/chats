@@ -14,6 +14,30 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
+typedef enum oto_operation_enum {
+    OTO_OP_RECEIVE = 0,
+    OTO_OP_SEND = 1,
+    OTO_OP_COUNT
+} oto_op_t;
+
+typedef ssize_t (*OTO_OPERATOR)(int skt_fd, void *b, size_t len, int flags);
+
+struct oto_operation {
+    OTO_OPERATOR op;
+    io_svc_op_t io_svc_op;
+};
+
+static const struct oto_operation OPERATORS[OTO_OP_COUNT] = {
+    [OTO_OP_RECEIVE] = {
+        .op = recv,
+        .io_svc_op = IO_SVC_OP_READ
+    },
+    [OTO_OP_SEND] = {
+        .op = send,
+        .io_svc_op = IO_SVC_OP_WRITE
+    }
+};
+
 struct oto_server_tcp {
     bool connected;
     pthread_mutexattr_t mtx_attr;
@@ -31,11 +55,12 @@ struct connection_acceptor {
     void *connection_ctx;
 };
 
-struct send_buffer {
+struct send_recv_buffer {
+    oto_op_t op;
     oto_server_tcp_t *server;
     buffer_t *buffer;
-    size_t bytes_sent;
-    oto_send_cb_t cb;
+    size_t bytes_operated;
+    oto_send_recv_cb_t cb;
     void *ctx;
 };
 
@@ -81,7 +106,117 @@ void oto_tcp_ip4_acceptor(int fd, io_svc_op_t op, void *ctx) {
 }
 
 static
-void oto_send_sync(struct send_buffer *sb) {
+void oto_send_recv_sync(struct send_recv_buffer *srb) {
+    oto_server_tcp_t *server;
+    buffer_t *buffer;
+    size_t bytes_op;
+    ssize_t bytes_sent_cur;
+    oto_op_t op;
+    OTO_OPERATOR oper;
+
+    assert(srb != NULL);
+
+    server = srb->server;
+    buffer = srb->buffer;
+    op = srb->op;
+    oper = OPERATORS[op].op;
+
+    assert(server != NULL);
+    assert(buffer != NULL);
+
+    bytes_op = srb->bytes_operated;
+
+    if (!server->connected) return;
+
+    pthread_mutex_lock(&server->mutex);
+
+    while (bytes_op < buffer_size(buffer)) {
+        bytes_sent_cur = (*oper)(server->remote.skt,
+                                 buffer_data(buffer) + bytes_op,
+                                 buffer_size(buffer) - bytes_op,
+                                 MSG_NOSIGNAL);
+        if (bytes_sent_cur < 0) break;
+
+        bytes_op += bytes_sent_cur;
+    }
+
+    srb->bytes_operated = bytes_op;
+
+    (*srb->cb)(errno, bytes_op, buffer, srb->ctx);
+
+    pthread_mutex_unlock(&server->mutex);
+
+    deallocate(srb);
+}
+
+static
+void oto_send_recv_async(int fd, io_svc_op_t op_, void *ctx) {
+    struct send_recv_buffer *srb = ctx;
+    oto_server_tcp_t *server;
+    buffer_t *buffer;
+    size_t bytes_op;
+    ssize_t bytes_op_cur;
+    oto_op_t op;
+    OTO_OPERATOR oper;
+    io_svc_op_t io_svc_op;
+
+    assert(srb != NULL);
+
+    server = srb->server;
+    buffer = srb->buffer;
+    op = srb->op;
+    oper = OPERATORS[op].op;
+    io_svc_op = OPERATORS[op].io_svc_op;
+
+    assert(server != NULL);
+    assert(buffer != NULL);
+
+    bytes_op = srb->bytes_operated;
+
+    if (!server->connected) return;
+
+    pthread_mutex_lock(&server->mutex);
+
+    bytes_op_cur = (*oper)(server->remote.skt,
+                           buffer_data(buffer) + bytes_op,
+                           buffer_size(buffer) - bytes_op,
+                           MSG_DONTWAIT | MSG_NOSIGNAL);
+
+    if (bytes_op_cur < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK)
+            io_service_post_job(server->master,
+                                server->remote.skt,
+                                io_svc_op,
+                                true,
+                                oto_send_recv_async,
+                                srb);
+        else {
+            (*srb->cb)(errno, bytes_op, buffer, srb->ctx);
+            deallocate(srb);
+        }
+    }
+    else {
+        bytes_op += bytes_op_cur;
+        srb->bytes_operated = bytes_op;
+        if (bytes_op < buffer_size(buffer))
+            io_service_post_job(server->master,
+                                server->remote.skt,
+                                io_svc_op,
+                                true,
+                                oto_send_recv_async,
+                                srb);
+        else {
+            (*srb->cb)(errno, bytes_op, buffer, srb->ctx);
+            deallocate(srb);
+        }
+    }
+
+    pthread_mutex_unlock(&server->mutex);
+}
+
+#if 0
+static
+void oto_send_sync(struct send_recv_buffer *sb) {
     oto_server_tcp_t *server;
     buffer_t *buffer;
     size_t bytes_sent;
@@ -95,7 +230,7 @@ void oto_send_sync(struct send_buffer *sb) {
     assert(server != NULL);
     assert(buffer != NULL);
 
-    bytes_sent = sb->bytes_sent;
+    bytes_sent = sb->bytes_operated;
 
     if (!server->connected) return;
 
@@ -110,7 +245,7 @@ void oto_send_sync(struct send_buffer *sb) {
         bytes_sent += bytes_sent_cur;
     }
 
-    sb->bytes_sent = bytes_sent;
+    sb->bytes_operated = bytes_sent;
 
     (*sb->cb)(errno, bytes_sent, buffer, sb->ctx);
 
@@ -120,8 +255,47 @@ void oto_send_sync(struct send_buffer *sb) {
 }
 
 static
+void oto_recv_sync(struct send_recv_buffer *rb) {
+    oto_server_tcp_t *server;
+    buffer_t *buffer;
+    size_t bytes_recv;
+    ssize_t bytes_sent_cur;
+
+    assert(rb != NULL);
+
+    server = rb->server;
+    buffer = rb->buffer;
+
+    assert(server != NULL);
+    assert(buffer != NULL);
+
+    bytes_recv = rb->bytes_operated;
+
+    if (!server->connected) return;
+
+    pthread_mutex_lock(&server->mutex);
+
+    while (bytes_recv < buffer_size(buffer)) {
+        bytes_sent_cur = recv(server->remote.skt,
+                              buffer_data(buffer) + bytes_recv,
+                              buffer_size(buffer) - bytes_recv,
+                              MSG_NOSIGNAL);
+        if (bytes_sent_cur < 0) break;
+        bytes_recv += bytes_sent_cur;
+    }
+
+    rb->bytes_operated = bytes_recv;
+
+    (*rb->cb)(errno, bytes_recv, buffer, rb->ctx);
+
+    pthread_mutex_unlock(&server->mutex);
+
+    deallocate(rb);
+}
+
+static
 void oto_send_async(int fd, io_svc_op_t op, void *ctx) {
-    struct send_buffer *sb = ctx;
+    struct send_recv_buffer *sb = ctx;
     oto_server_tcp_t *server;
     buffer_t *buffer;
     size_t bytes_sent;
@@ -135,7 +309,7 @@ void oto_send_async(int fd, io_svc_op_t op, void *ctx) {
     assert(server != NULL);
     assert(buffer != NULL);
 
-    bytes_sent = sb->bytes_sent;
+    bytes_sent = sb->bytes_operated;
 
     if (!server->connected) return;
 
@@ -154,12 +328,14 @@ void oto_send_async(int fd, io_svc_op_t op, void *ctx) {
                                 true,
                                 oto_send_async,
                                 sb);
-        else
+        else {
             (*sb->cb)(errno, bytes_sent, buffer, sb->ctx);
+            deallocate(sb);
+        }
     }
     else {
         bytes_sent += bytes_sent_cur;
-        sb->bytes_sent = bytes_sent;
+        sb->bytes_operated = bytes_sent;
         if (bytes_sent < buffer_size(buffer))
             io_service_post_job(server->master,
                                 server->remote.skt,
@@ -176,10 +352,71 @@ void oto_send_async(int fd, io_svc_op_t op, void *ctx) {
     pthread_mutex_unlock(&server->mutex);
 }
 
+static
+void oto_recv_async(int fd, io_svc_op_t op, void *ctx) {
+    struct send_recv_buffer *rb = ctx;
+    oto_server_tcp_t *server;
+    buffer_t *buffer;
+    size_t bytes_recv;
+    ssize_t bytes_sent_cur;
+
+    assert(rb != NULL);
+
+    server = rb->server;
+    buffer = rb->buffer;
+
+    assert(server != NULL);
+    assert(buffer != NULL);
+
+    bytes_recv = rb->bytes_operated;
+
+    if (!server->connected) return;
+
+    pthread_mutex_lock(&server->mutex);
+
+    bytes_sent_cur = recv(server->remote.skt,
+                          buffer_data(buffer) + bytes_recv,
+                          buffer_size(buffer) - bytes_recv,
+                          MSG_DONTWAIT | MSG_NOSIGNAL);
+
+    if (bytes_sent_cur < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK)
+            io_service_post_job(server->master,
+                                server->remote.skt,
+                                IO_SVC_OP_READ,
+                                true,
+                                oto_recv_async,
+                                rb);
+        else {
+            (*rb->cb)(errno, bytes_recv, buffer, rb->ctx);
+            deallocate(rb);
+        }
+    }
+    else {
+        bytes_recv += bytes_sent_cur;
+        rb->bytes_operated = bytes_recv;
+        if (bytes_recv < buffer_size(buffer))
+            io_service_post_job(server->master,
+                                server->remote.skt,
+                                IO_SVC_OP_READ,
+                                true,
+                                oto_recv_async,
+                                rb);
+        else {
+            (*rb->cb)(errno, bytes_recv, buffer, rb->ctx);
+            deallocate(rb);
+        }
+    }
+
+    pthread_mutex_unlock(&server->mutex);
+}
+#endif
+
 oto_server_tcp_t *oto_server_tcp_init(io_service_t *svc,
                                       endpoint_class_t epc,
                                       const char *local_addr, unsigned int local_port) {
-    char *endptr = NULL, *startptr;
+    char *endptr = NULL;
+    const char *startptr;
     unsigned long int tmp;
     oto_server_tcp_t *server;
     int socket_family, socket_type = SOCK_STREAM | SOCK_CLOEXEC;
@@ -361,36 +598,83 @@ void oto_server_tcp_remote_ep(oto_server_tcp_t *server, endpoint_socket_t *ep) {
 
 void oto_server_tcp_send_sync(oto_server_tcp_t *server,
                               buffer_t *buffer,
-                              oto_send_cb_t cb, void *ctx) {
-    struct send_buffer *sb = allocate(sizeof(struct send_buffer));
+                              oto_send_recv_cb_t cb, void *ctx) {
+    struct send_recv_buffer *sb = allocate(sizeof(struct send_recv_buffer));
 
     assert(sb != NULL);
 
     sb->buffer = buffer;
     sb->server = server;
-    sb->bytes_sent = 0;
+    sb->bytes_operated = 0;
     sb->cb = cb;
     sb->ctx = ctx;
-    oto_send_sync(sb);
+    sb->op = OTO_OP_SEND;
+
+    oto_send_recv_sync(sb);
 }
 
 void oto_server_tcp_send_async(oto_server_tcp_t *server,
                                buffer_t *buffer,
-                               oto_send_cb_t cb, void *ctx) {
-    struct send_buffer *sb = allocate(sizeof(struct send_buffer));
+                               oto_send_recv_cb_t cb, void *ctx) {
+    struct send_recv_buffer *sb = allocate(sizeof(struct send_recv_buffer));
 
     assert(sb != NULL);
 
     sb->buffer = buffer;
     sb->server = server;
-    sb->bytes_sent = 0;
+    sb->bytes_operated = 0;
     sb->cb = cb;
     sb->ctx = ctx;
+    sb->op = OTO_OP_SEND;
 
     io_service_post_job(server->master,
                         server->remote.skt,
                         IO_SVC_OP_WRITE,
                         true,
-                        oto_send_async,
+                        oto_send_recv_async,
                         sb);
 }
+
+void oto_server_tcp_recv_sync(oto_server_tcp_t *server,
+                              buffer_t *buffer,
+                              oto_send_recv_cb_t cb, void *ctx) {
+    struct send_recv_buffer *rb = allocate(sizeof(struct send_recv_buffer));
+
+    assert(rb != NULL);
+
+    rb->buffer = buffer;
+    rb->server = server;
+    rb->bytes_operated = 0;
+    rb->cb = cb;
+    rb->ctx = ctx;
+    rb->op = OTO_OP_RECEIVE;
+
+    oto_send_recv_sync(rb);
+}
+
+void oto_server_tcp_recv_async(oto_server_tcp_t *server,
+                               buffer_t *buffer,
+                               oto_send_recv_cb_t cb, void *ctx) {
+    struct send_recv_buffer *rb = allocate(sizeof(struct send_recv_buffer));
+
+    assert(rb != NULL);
+
+    rb->buffer = buffer;
+    rb->server = server;
+    rb->bytes_operated = 0;
+    rb->cb = cb;
+    rb->ctx = ctx;
+    rb->op = OTO_OP_RECEIVE;
+
+    io_service_post_job(server->master,
+                        server->remote.skt,
+                        IO_SVC_OP_READ,
+                        true,
+                        oto_send_recv_async,
+                        rb);
+}
+
+
+
+
+
