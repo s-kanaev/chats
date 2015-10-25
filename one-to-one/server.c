@@ -673,8 +673,3 @@ void oto_server_tcp_recv_async(oto_server_tcp_t *server,
                         oto_send_recv_async,
                         rb);
 }
-
-
-
-
-
