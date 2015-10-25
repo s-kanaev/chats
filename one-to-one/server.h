@@ -16,9 +16,11 @@
 typedef bool (*oto_connection_cb_t)(endpoint_t *ep, int err, void *ctx);
 /** callback on data sent
  * \param [in] err errno
+ * \param [in] bytes bytes sent
+ * \param [in] buffer buffer sent
  * \param [in] ctx user context
  */
-typedef void (*oto_send_cb_t)(int err, void *ctx);
+typedef void (*oto_send_cb_t)(int err, size_t bytes, buffer_t *buffer, void *ctx);
 
 struct oto_server_tcp;
 typedef struct oto_server_tcp oto_server_tcp_t;

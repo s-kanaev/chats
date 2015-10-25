@@ -82,20 +82,41 @@ void oto_tcp_ip4_acceptor(int fd, io_svc_op_t op, void *ctx) {
 
 static
 void oto_send_sync(struct send_buffer *sb) {
-    /* TODO */
-#error "Not implemented"
     oto_server_tcp_t *server;
     buffer_t *buffer;
+    size_t bytes_sent;
+    ssize_t bytes_sent_cur;
 
     assert(sb != NULL);
 
     server = sb->server;
     buffer = sb->buffer;
-    size_t bytes_sent = sb->bytes_sent;
+
+    assert(server != NULL);
+    assert(buffer != NULL);
+
+    bytes_sent = sb->bytes_sent;
 
     if (!server->connected) return;
 
-    /* TODO */
+    pthread_mutex_lock(&server->mutex);
+
+    while (bytes_sent < buffer_size(buffer)) {
+        bytes_sent_cur = send(server->remote.skt,
+                              buffer_data(buffer) + bytes_sent,
+                              buffer_size(buffer) - bytes_sent,
+                              0);
+        if (bytes_sent_cur < 0) break;
+        bytes_sent += bytes_sent_cur;
+    }
+
+    sb->bytes_sent = bytes_sent;
+
+    (*sb->cb)(errno, bytes_sent, buffer, sb->ctx);
+
+    pthread_mutex_unlock(&server->mutex);
+
+    deallocate(sb);
 }
 
 static
@@ -290,7 +311,13 @@ void oto_server_tcp_remote_ep(oto_server_tcp_t *server, endpoint_socket_t *ep) {
 void oto_server_tcp_send_sync(oto_server_tcp_t *server,
                               buffer_t *buffer,
                               oto_send_cb_t cb, void *ctx) {
-    /* TODO */
+    struct send_buffer *sb = allocate(sizeof(struct send_buffer));
+    sb->buffer = buffer;
+    sb->server = server;
+    sb->bytes_sent = 0;
+    sb->cb = cb;
+    sb->ctx = ctx;
+    oto_send_sync(sb);
 }
 
 
