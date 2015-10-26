@@ -219,16 +219,13 @@ void oto_send_recv_async(int fd, io_svc_op_t op_, void *ctx) {
 }
 
 oto_server_tcp_t *oto_server_tcp_init(io_service_t *svc,
-                                      endpoint_class_t epc,
-                                      int reuse_addr,
-                                      const char *local_addr, unsigned int local_port) {
-    char *endptr = NULL;
-    const char *startptr;
-    unsigned long int tmp;
-    oto_server_tcp_t *server;
+                                      endpoint_t *ep,
+                                      int reuse_addr) {
+    oto_server_tcp_t *server = NULL;
     int socket_family, socket_type = SOCK_STREAM | SOCK_CLOEXEC;
 
-    if (epc >= EPC_MAX || local_addr == NULL) goto fail;
+    if (svc == NULL || ep == NULL) goto fail;
+    if (ep->ep_type != EPT_TCP || ep->ep_class >= EPC_MAX) goto fail;
 
     server = allocate(sizeof(oto_server_tcp_t));
 
@@ -239,36 +236,13 @@ oto_server_tcp_t *oto_server_tcp_init(io_service_t *svc,
     pthread_mutex_init(&server->mutex, &server->mtx_attr);
 
     server->master = svc;
-    server->local.ep.ep_class = epc;
-    server->local.ep.ep_type = EPT_TCP;
+    memcpy(&server->local.ep, ep, sizeof(server->local.ep));
     server->reuse_addr = reuse_addr;
 
     memset(&server->local_addr, 0, sizeof(server->local_addr));
 
-    switch (epc) {
+    switch (server->local.ep.ep_class) {
     case EPC_IP4:
-        server->local.ep.ep.ip4.port = local_port;
-
-        startptr = local_addr;
-        tmp = strtoul(startptr, &endptr, 10);
-        if (endptr == startptr || *endptr != '.' || tmp >= 256) goto fail;
-        server->local.ep.ep.ip4.addr[0] = tmp;
-
-        startptr = endptr + 1;
-        tmp = strtoul(startptr, &endptr, 10);
-        if (endptr == startptr || *endptr != '.' || tmp >= 256) goto fail;
-        server->local.ep.ep.ip4.addr[1] = tmp;
-
-        startptr = endptr + 1;
-        tmp = strtoul(startptr, &endptr, 10);
-        if (endptr == startptr || *endptr != '.' || tmp >= 256) goto fail;
-        server->local.ep.ep.ip4.addr[2] = tmp;
-
-        startptr = endptr + 1;
-        tmp = strtoul(startptr, &endptr, 10);
-        if (endptr == startptr || *endptr != '\0' || tmp >= 256) goto fail;
-        server->local.ep.ep.ip4.addr[3] = tmp;
-
         socket_family = AF_INET;
 
         server->local_addr.sin_family = AF_INET;

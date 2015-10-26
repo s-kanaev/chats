@@ -56,6 +56,7 @@ int main(int argc, char *argv[]) {
     io_service_t *iosvc;
     buffer_t *buffer;
     context_t context;
+    endpoint_t ep;
 
     buffer = buffer_init(10, buffer_policy_no_shrink);
     assert(buffer != NULL);
@@ -63,7 +64,13 @@ int main(int argc, char *argv[]) {
     iosvc = io_service_init();
     assert(iosvc != NULL);
 
-    server = oto_server_tcp_init(iosvc, EPC_IP4, 1, "0.0.0.0", 12345);
+    ep.ep_type = EPT_TCP;
+    ep.ep_class = EPC_IP4;
+    ep.ep.ip4.addr[0] = ep.ep.ip4.addr[1] =
+    ep.ep.ip4.addr[2] = ep.ep.ip4.addr[3] = 0;
+    ep.ep.ip4.port = 12345;
+
+    server = oto_server_tcp_init(iosvc, &ep, 1);
     assert(server != NULL);
 
     context.buffer = buffer;
