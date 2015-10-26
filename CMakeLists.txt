@@ -10,6 +10,7 @@ include_directories(coroutine)
 include_directories(io-service)
 include_directories(timer)
 include_directories(network)
+include_directories(.)
 
 add_subdirectory(common)
 add_subdirectory(thread-pool)
