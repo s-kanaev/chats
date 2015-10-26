@@ -33,10 +33,8 @@ static void tmr_job_tpl(int fd, io_svc_op_t op, void *_ctx) {
 
     timer->job(timer->ctx);
 
-    if (timer->tmr_class == periodic)
-        io_service_post_job(timer->master,
-                            timer->fd, IO_SVC_OP_READ,
-                            tmr_job_tpl, timer);
+    if (timer->tmr_class != periodic)
+        timer->armed = false;
 }
 
 tmr_t* timer_init(io_service_t* iosvc) {
@@ -85,7 +83,7 @@ void timer_set_deadline(tmr_t *tmr,
     tmr->armed = true;
 
     io_service_post_job(tmr->master,
-                        tmr->fd, IO_SVC_OP_READ,
+                        tmr->fd, IO_SVC_OP_READ, true,
                         tmr_job_tpl, tmr);
 }
 
@@ -109,7 +107,7 @@ void timer_set_periodic(tmr_t *tmr,
     tmr->armed = true;
 
     io_service_post_job(tmr->master,
-                        tmr->fd, IO_SVC_OP_READ,
+                        tmr->fd, IO_SVC_OP_READ, false,
                         tmr_job_tpl, tmr);
 }
 
@@ -132,7 +130,7 @@ void timer_set_absolute(tmr_t *tmr,
     tmr->armed = true;
 
     io_service_post_job(tmr->master,
-                        tmr->fd, IO_SVC_OP_READ,
+                        tmr->fd, IO_SVC_OP_READ, true,
                         tmr_job_tpl, tmr);
 }
 

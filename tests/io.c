@@ -10,7 +10,6 @@
 #include <unistd.h>
 
 #define THREAD_COUNT 2
-#define JOB_COUNT 100
 
 typedef struct {
     pthread_mutex_t mtx;
@@ -19,18 +18,6 @@ typedef struct {
     thread_pool_t *tp;
     io_service_t *iosvc;
 } context;
-
-static void progress(void *ctx_) {
-    context *ctx = ctx_;
-    usleep(1000000);
-    pthread_mutex_lock(&ctx->mtx);
-    if (ctx->chr == 0) {
-        fprintf(stdout, ".");
-        fflush(stdout);
-        thread_pool_post_job(ctx->tp, progress, ctx_);
-    }
-    pthread_mutex_unlock(&ctx->mtx);
-}
 
 static void do_input(void *ctx_) {
     context *ctx = ctx_;
@@ -75,16 +62,20 @@ int main(void) {
 
     timer_set_periodic(ctx.timer, 1, 0, timer_cb, &ctx);
 
-    io_service_post_job(ctx.iosvc, STDIN_FILENO, IO_SVC_OP_READ, input, &ctx);
+    io_service_post_job(ctx.iosvc, STDIN_FILENO, IO_SVC_OP_READ, true, input, &ctx);
     //thread_pool_post_job(ctx.tp, progress, (void *)&ctx);
 
     io_service_run(ctx.iosvc);
 
-    fprintf(stdout, "You've entered: %c\n", ctx.chr);
+    pthread_mutex_lock(&ctx.mtx);
+    fprintf(stdout, "You've entered: %c, %02x\n", ctx.chr, (int)ctx.chr);
 
-    pthread_mutex_destroy(&ctx.mtx);
+    timer_deinit(ctx.timer);
     io_service_deinit(ctx.iosvc);
     thread_pool_stop(ctx.tp, true);
+    pthread_mutex_unlock(&ctx.mtx);
+
+    pthread_mutex_destroy(&ctx.mtx);
 
     return 0;
 }

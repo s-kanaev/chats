@@ -42,7 +42,7 @@ list_t *list_init(size_t element_size) {
     return l;
 }
 
-void *list_deinit(list_t *l) {
+void list_deinit(list_t *l) {
     struct list_element *el, *el2;
 
     if (!l) return;
@@ -51,6 +51,8 @@ void *list_deinit(list_t *l) {
         el2 = el->next;
         deallocate(el);
     }
+
+    deallocate(l);
 }
 
 size_t list_size(list_t *l) {
