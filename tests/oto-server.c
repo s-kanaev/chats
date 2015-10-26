@@ -63,7 +63,7 @@ int main(int argc, char *argv[]) {
     iosvc = io_service_init();
     assert(iosvc != NULL);
 
-    server = oto_server_tcp_init(iosvc, EPC_IP4, "0.0.0.0", 12345);
+    server = oto_server_tcp_init(iosvc, EPC_IP4, 1, "0.0.0.0", 12345);
     assert(server != NULL);
 
     context.buffer = buffer;

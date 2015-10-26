@@ -40,6 +40,7 @@ static const struct oto_operation OPERATORS[OTO_OP_COUNT] = {
 
 struct oto_server_tcp {
     bool connected;
+    int reuse_addr;
     pthread_mutexattr_t mtx_attr;
     pthread_mutex_t mutex;
     io_service_t *master;
@@ -219,6 +220,7 @@ void oto_send_recv_async(int fd, io_svc_op_t op_, void *ctx) {
 
 oto_server_tcp_t *oto_server_tcp_init(io_service_t *svc,
                                       endpoint_class_t epc,
+                                      int reuse_addr,
                                       const char *local_addr, unsigned int local_port) {
     char *endptr = NULL;
     const char *startptr;
@@ -239,6 +241,7 @@ oto_server_tcp_t *oto_server_tcp_init(io_service_t *svc,
     server->master = svc;
     server->local.ep.ep_class = epc;
     server->local.ep.ep_type = EPT_TCP;
+    server->reuse_addr = reuse_addr;
 
     memset(&server->local_addr, 0, sizeof(server->local_addr));
 
@@ -294,6 +297,12 @@ oto_server_tcp_t *oto_server_tcp_init(io_service_t *svc,
                                0);
 
     if (server->local.skt < 0) goto fail;
+
+    if (setsockopt(server->local.skt,
+                   SOL_SOCKET,
+                   SO_REUSEADDR,
+                   &server->reuse_addr,
+                   sizeof(server->reuse_addr))) goto fail_socket;
 
     if (bind(server->local.skt,
              (const struct sockaddr *)(&server->local_addr),

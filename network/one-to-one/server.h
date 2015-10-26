@@ -27,6 +27,7 @@ typedef struct oto_server_tcp oto_server_tcp_t;
 
 oto_server_tcp_t *oto_server_tcp_init(io_service_t *svc,
                                       endpoint_class_t epc,
+                                      int reuse_addr,
                                       const char *local_addr, unsigned local_port);
 void oto_server_tcp_deinit(oto_server_tcp_t *server);
 void oto_server_tcp_listen_sync(oto_server_tcp_t *server,
