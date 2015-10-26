@@ -83,7 +83,7 @@ void timer_set_deadline(tmr_t *tmr,
     tmr->armed = true;
 
     io_service_post_job(tmr->master,
-                        tmr->fd, IO_SVC_OP_READ, false,
+                        tmr->fd, IO_SVC_OP_READ, true,
                         tmr_job_tpl, tmr);
 }
 
@@ -107,7 +107,7 @@ void timer_set_periodic(tmr_t *tmr,
     tmr->armed = true;
 
     io_service_post_job(tmr->master,
-                        tmr->fd, IO_SVC_OP_READ, true,
+                        tmr->fd, IO_SVC_OP_READ, false,
                         tmr_job_tpl, tmr);
 }
 
@@ -130,7 +130,7 @@ void timer_set_absolute(tmr_t *tmr,
     tmr->armed = true;
 
     io_service_post_job(tmr->master,
-                        tmr->fd, IO_SVC_OP_READ, false,
+                        tmr->fd, IO_SVC_OP_READ, true,
                         tmr_job_tpl, tmr);
 }
 

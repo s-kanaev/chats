@@ -191,6 +191,9 @@ void io_service_run(io_service_t *iosvc) {
         if (fd == event_fd) {
             read_svc(fd);
 
+            if ((list_size(iosvc->lookup_table) == 0) && (iosvc->allow_new == false))
+                *running = false;
+
             for (lte = list_first_element(iosvc->lookup_table); lte;) {
                 if (lte->event.events == 0) {
                     epoll_ctl(epoll_fd, EPOLL_CTL_DEL, lte->fd, NULL);

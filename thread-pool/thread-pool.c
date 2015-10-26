@@ -58,10 +58,11 @@ static void *worker_tpl(void *_tp) {
 
     while (true) {
         pthread_mutex_lock(job_mutex);
-        while (tp->run && (list_size(tp->queue) == 0))
+        while (tp->run && tp->allow_new_jobs && (list_size(tp->queue) == 0))
             pthread_cond_wait(job_semaphore, job_mutex);
 
         if (!tp->run) break;
+        if (list_size(tp->queue) == 0 && !tp->allow_new_jobs) break;
 
         get_and_pop_job(tp, &job, &ctx);
         pthread_mutex_unlock(job_mutex);
