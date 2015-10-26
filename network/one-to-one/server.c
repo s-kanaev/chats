@@ -14,30 +14,6 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
-typedef enum oto_operation_enum {
-    OTO_OP_RECEIVE = 0,
-    OTO_OP_SEND = 1,
-    OTO_OP_COUNT
-} oto_op_t;
-
-typedef ssize_t (*OTO_OPERATOR)(int skt_fd, void *b, size_t len, int flags);
-
-struct oto_operation {
-    OTO_OPERATOR op;
-    io_svc_op_t io_svc_op;
-};
-
-static const struct oto_operation OPERATORS[OTO_OP_COUNT] = {
-    [OTO_OP_RECEIVE] = {
-        .op = recv,
-        .io_svc_op = IO_SVC_OP_READ
-    },
-    [OTO_OP_SEND] = {
-        .op = send,
-        .io_svc_op = IO_SVC_OP_WRITE
-    }
-};
-
 struct oto_server_tcp {
     bool connected;
     int reuse_addr;
@@ -50,25 +26,10 @@ struct oto_server_tcp {
     endpoint_socket_t remote;
 };
 
-struct connection_acceptor {
-    oto_server_tcp_t *server;
-    oto_connection_cb_t connection_cb;
-    void *connection_ctx;
-};
-
-struct send_recv_buffer {
-    oto_op_t op;
-    oto_server_tcp_t *server;
-    buffer_t *buffer;
-    size_t bytes_operated;
-    oto_send_recv_cb_t cb;
-    void *ctx;
-};
-
 static
 void oto_tcp_ip4_acceptor(int fd, io_svc_op_t op, void *ctx) {
     struct connection_acceptor *acceptor = ctx;
-    oto_server_tcp_t *server = acceptor->server;
+    oto_server_tcp_t *server = acceptor->host;
     uint32_t addr;
     socklen_t len;
 
@@ -113,12 +74,12 @@ void oto_send_recv_sync(struct send_recv_buffer *srb) {
     buffer_t *buffer;
     size_t bytes_op;
     ssize_t bytes_sent_cur;
-    oto_op_t op;
-    OTO_OPERATOR oper;
+    network_op_t op;
+    NETWORK_OPERATOR oper;
 
     assert(srb != NULL);
 
-    server = srb->server;
+    server = srb->host;
     buffer = srb->buffer;
     op = srb->op;
     oper = OPERATORS[op].op;
@@ -159,13 +120,13 @@ void oto_send_recv_async(int fd, io_svc_op_t op_, void *ctx) {
     buffer_t *buffer;
     size_t bytes_op;
     ssize_t bytes_op_cur;
-    oto_op_t op;
-    OTO_OPERATOR oper;
+    network_op_t op;
+    NETWORK_OPERATOR oper;
     io_svc_op_t io_svc_op;
 
     assert(srb != NULL);
 
-    server = srb->server;
+    server = srb->host;
     buffer = srb->buffer;
     op = srb->op;
     oper = OPERATORS[op].op;
@@ -319,7 +280,7 @@ void oto_server_tcp_disconnect(oto_server_tcp_t *server) {
 }
 
 void oto_server_tcp_listen_sync(oto_server_tcp_t *server,
-                                oto_connection_cb_t cb, void *ctx) {
+                                tcp_connection_cb_t cb, void *ctx) {
     struct connection_acceptor *acceptor;
     if (!server) return;
 
@@ -332,7 +293,7 @@ void oto_server_tcp_listen_sync(oto_server_tcp_t *server,
     acceptor = allocate(sizeof(struct connection_acceptor));
     assert(acceptor != NULL);
 
-    acceptor->server = server;
+    acceptor->host = server;
     acceptor->connection_cb = cb;
     acceptor->connection_ctx = ctx;
 
@@ -341,7 +302,7 @@ void oto_server_tcp_listen_sync(oto_server_tcp_t *server,
 }
 
 void oto_server_tcp_listen_async(oto_server_tcp_t *server,
-                                 oto_connection_cb_t cb, void *ctx) {
+                                 tcp_connection_cb_t cb, void *ctx) {
     struct connection_acceptor *acceptor;
     if (!server) return;
 
@@ -354,7 +315,7 @@ void oto_server_tcp_listen_async(oto_server_tcp_t *server,
     acceptor = allocate(sizeof(struct connection_acceptor));
     assert(acceptor != NULL);
 
-    acceptor->server = server;
+    acceptor->host = server;
     acceptor->connection_cb = cb;
     acceptor->connection_ctx = ctx;
 
@@ -386,34 +347,34 @@ void oto_server_tcp_remote_ep(oto_server_tcp_t *server, endpoint_socket_t *ep) {
 
 void oto_server_tcp_send_sync(oto_server_tcp_t *server,
                               buffer_t *buffer,
-                              oto_send_recv_cb_t cb, void *ctx) {
+                              network_send_recv_cb_t cb, void *ctx) {
     struct send_recv_buffer *sb = allocate(sizeof(struct send_recv_buffer));
 
     assert(sb != NULL);
 
     sb->buffer = buffer;
-    sb->server = server;
+    sb->host = server;
     sb->bytes_operated = 0;
     sb->cb = cb;
     sb->ctx = ctx;
-    sb->op = OTO_OP_SEND;
+    sb->op = NETWORK_OP_SEND;
 
     oto_send_recv_sync(sb);
 }
 
 void oto_server_tcp_send_async(oto_server_tcp_t *server,
                                buffer_t *buffer,
-                               oto_send_recv_cb_t cb, void *ctx) {
+                               network_send_recv_cb_t cb, void *ctx) {
     struct send_recv_buffer *sb = allocate(sizeof(struct send_recv_buffer));
 
     assert(sb != NULL);
 
     sb->buffer = buffer;
-    sb->server = server;
+    sb->host = server;
     sb->bytes_operated = 0;
     sb->cb = cb;
     sb->ctx = ctx;
-    sb->op = OTO_OP_SEND;
+    sb->op = NETWORK_OP_SEND;
 
     io_service_post_job(server->master,
                         server->remote.skt,
@@ -425,34 +386,34 @@ void oto_server_tcp_send_async(oto_server_tcp_t *server,
 
 void oto_server_tcp_recv_sync(oto_server_tcp_t *server,
                               buffer_t *buffer,
-                              oto_send_recv_cb_t cb, void *ctx) {
+                              network_send_recv_cb_t cb, void *ctx) {
     struct send_recv_buffer *rb = allocate(sizeof(struct send_recv_buffer));
 
     assert(rb != NULL);
 
     rb->buffer = buffer;
-    rb->server = server;
+    rb->host = server;
     rb->bytes_operated = 0;
     rb->cb = cb;
     rb->ctx = ctx;
-    rb->op = OTO_OP_RECEIVE;
+    rb->op = NETWORK_OP_RECEIVE;
 
     oto_send_recv_sync(rb);
 }
 
 void oto_server_tcp_recv_async(oto_server_tcp_t *server,
                                buffer_t *buffer,
-                               oto_send_recv_cb_t cb, void *ctx) {
+                               network_send_recv_cb_t cb, void *ctx) {
     struct send_recv_buffer *rb = allocate(sizeof(struct send_recv_buffer));
 
     assert(rb != NULL);
 
     rb->buffer = buffer;
-    rb->server = server;
+    rb->host = server;
     rb->bytes_operated = 0;
     rb->cb = cb;
     rb->ctx = ctx;
-    rb->op = OTO_OP_RECEIVE;
+    rb->op = NETWORK_OP_RECEIVE;
 
     io_service_post_job(server->master,
                         server->remote.skt,
