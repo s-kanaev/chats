@@ -84,6 +84,7 @@ int main(int argc, char *argv[]) {
 
     oto_server_tcp_deinit(server);
     io_service_deinit(iosvc);
+    buffer_deinit(buffer);
 
     return 0;
 }
