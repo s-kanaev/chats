@@ -73,6 +73,7 @@ void oto_tcp_ip4_acceptor(int fd, io_svc_op_t op, void *ctx) {
 
     pthread_mutex_lock(&server->mutex);
 
+    errno = 0;
     len = sizeof(server->remote_addr);
     int afd = accept(server->local.skt,
                      (struct sockaddr *)(&server->remote_addr),
@@ -131,6 +132,7 @@ void oto_send_recv_sync(struct send_recv_buffer *srb) {
     pthread_mutex_lock(&server->mutex);
 
     while (bytes_op < buffer_size(buffer)) {
+        errno = 0;
         bytes_sent_cur = (*oper)(server->remote.skt,
                                  buffer_data(buffer) + bytes_op,
                                  buffer_size(buffer) - bytes_op,
@@ -177,6 +179,7 @@ void oto_send_recv_async(int fd, io_svc_op_t op_, void *ctx) {
 
     pthread_mutex_lock(&server->mutex);
 
+    errno = 0;
     bytes_op_cur = (*oper)(server->remote.skt,
                            buffer_data(buffer) + bytes_op,
                            buffer_size(buffer) - bytes_op,
