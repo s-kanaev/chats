@@ -25,11 +25,11 @@ typedef void (*network_send_recv_cb_t)(int err,
                                        size_t bytes, buffer_t *buffer,
                                        void *ctx);
 
-typedef enum network_operation_enum {
-    NETWORK_OP_RECEIVE = 0,
-    NETWORK_OP_SEND = 1,
-    NETWORK_OP_COUNT
-} network_op_t;
+typedef enum network_operation_tcp_enum {
+    NETWORK_TCP_OP_RECEIVE = 0,
+    NETWORK_TCP_OP_SEND = 1,
+    NETWORK_TCP_OP_COUNT
+} network_tcp_op_t;
 
 struct connection_acceptor {
     void *host;
@@ -37,8 +37,8 @@ struct connection_acceptor {
     void *connection_ctx;
 };
 
-struct send_recv_buffer {
-    network_op_t op;
+struct send_recv_tcp_buffer {
+    network_tcp_op_t op;
     void *host;
     buffer_t *buffer;
     size_t bytes_operated;
@@ -46,13 +46,13 @@ struct send_recv_buffer {
     void *ctx;
 };
 
-typedef ssize_t (*NETWORK_OPERATOR)(int skt_fd, void *b, size_t len, int flags);
+typedef ssize_t (*NETWORK_TCP_OPERATOR)(int skt_fd, void *b, size_t len, int flags);
 
-struct network_operation {
-    NETWORK_OPERATOR op;
+struct network_operation_tcp {
+    NETWORK_TCP_OPERATOR op;
     io_svc_op_t io_svc_op;
 };
 
-const struct network_operation OPERATORS[NETWORK_OP_COUNT];
+const struct network_operation_tcp TCP_OPERATORS[NETWORK_TCP_OP_COUNT];
 
 #endif /* _CHATS_NETWORK_COMMON_H_ */
