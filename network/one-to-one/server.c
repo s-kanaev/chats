@@ -250,6 +250,7 @@ oto_server_tcp_t *oto_server_tcp_init(io_service_t *svc,
     return server;
 
 fail_socket:
+    shutdown(server->local.skt, SHUT_RDWR);
     close(server->local.skt);
 
 fail:
