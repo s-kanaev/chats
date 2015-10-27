@@ -37,6 +37,12 @@ struct connection_acceptor {
     void *connection_ctx;
 };
 
+struct connector {
+    void *host;
+    tcp_connection_cb_t connection_cb;
+    void *connection_ctx;
+};
+
 struct send_recv_tcp_buffer {
     network_tcp_op_t op;
     void *host;

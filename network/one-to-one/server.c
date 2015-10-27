@@ -10,6 +10,8 @@
 #include <unistd.h>
 #include <errno.h>
 #include <pthread.h>
+
+#include <netdb.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
@@ -20,8 +22,6 @@ struct oto_server_tcp {
     pthread_mutexattr_t mtx_attr;
     pthread_mutex_t mutex;
     io_service_t *master;
-    struct sockaddr_in local_addr;
-    struct sockaddr_in remote_addr;
     endpoint_socket_t local;
     endpoint_socket_t remote;
 };
@@ -32,27 +32,54 @@ void oto_tcp_ip4_acceptor(int fd, io_svc_op_t op, void *ctx) {
     oto_server_tcp_t *server = acceptor->host;
     uint32_t addr;
     socklen_t len;
+    struct sockaddr *dest_addr;
+    int afd;
 
     pthread_mutex_lock(&server->mutex);
 
     errno = 0;
-    len = sizeof(server->remote_addr);
-    int afd = accept(server->local.skt,
-                     (struct sockaddr *)(&server->remote_addr),
-                     &len);
+    switch (server->local.ep.ep_class) {
+        case EPC_IP4:
+            len = sizeof(server->remote.ep.addr.ip4);
+            dest_addr = (struct sockaddr *)&server->remote.ep.addr.ip4;
+            break;
+        case EPC_IP6:
+            len = sizeof(server->remote.ep.addr.ip6);
+            dest_addr = (struct sockaddr *)&server->remote.ep.addr.ip6;
+            break;
+        default:
+            assert(0);
+            break;
+    }
 
-    assert(len == sizeof(server->remote_addr));
+    afd = accept(server->local.skt, dest_addr, &len);
     assert(afd >= 0);
 
     server->connected = true;
     server->remote.skt = afd;
-    server->remote.ep.ep_class = EPC_IP4;
-    server->remote.ep.ep.ip4.port = ntohs(server->remote_addr.sin_port);
-    addr = ntohl(server->remote_addr.sin_addr.s_addr);
-    server->remote.ep.ep.ip4.addr[0] = addr >> 0x18;
-    server->remote.ep.ep.ip4.addr[1] = (addr >> 0x10) & 0xff;
-    server->remote.ep.ep.ip4.addr[2] = (addr >> 0x08) & 0xff;
-    server->remote.ep.ep.ip4.addr[3] = addr & 0xff;
+    //server->remote.ep.ep_class = server->local.ep.ep_class;
+
+    switch (len) {
+        case sizeof(struct sockaddr_in):
+            server->remote.ep.ep_class = EPC_IP4;
+            server->remote.ep.ep.ip4.port = ntohs(server->remote.ep.addr.ip4.sin_port);
+            addr = ntohl(server->remote.ep.addr.ip4.sin_addr.s_addr);
+            server->remote.ep.ep.ip4.addr[0] = addr >> 0x18;
+            server->remote.ep.ep.ip4.addr[1] = (addr >> 0x10) & 0xff;
+            server->remote.ep.ep.ip4.addr[2] = (addr >> 0x08) & 0xff;
+            server->remote.ep.ep.ip4.addr[3] = addr & 0xff;
+            break;
+        case sizeof(struct sockaddr_in6):
+            server->remote.ep.ep_class = EPC_IP6;
+            server->remote.ep.ep.ip6.port = ntohs(server->remote.ep.addr.ip6.sin6_port);
+            memcpy(server->remote.ep.ep.ip6.addr,
+                   &server->remote.ep.addr.ip6.sin6_addr,
+                   sizeof(server->remote.ep.ep.ip6.addr));
+            break;
+        default:
+            assert(0);
+            break;
+    }
 
     if (!(*acceptor->connection_cb)(&server->remote.ep,
                                     errno,
@@ -180,13 +207,17 @@ void oto_send_recv_async(int fd, io_svc_op_t op_, void *ctx) {
 }
 
 oto_server_tcp_t *oto_server_tcp_init(io_service_t *svc,
-                                      endpoint_t *ep,
+                                      const char *addr, const char *port,
                                       int reuse_addr) {
     oto_server_tcp_t *server = NULL;
-    int socket_family, socket_type = SOCK_STREAM | SOCK_CLOEXEC;
+    int ret;
+    int sfd;
+    struct addrinfo *addr_info = NULL, *cur_addr;
+    struct addrinfo hint;
+    int socket_family;
+    uint32_t addr_ip4;
 
-    if (svc == NULL || ep == NULL) goto fail;
-    if (ep->ep_type != EPT_TCP || ep->ep_class >= EPC_MAX) goto fail;
+    if (svc == NULL || addr == NULL || port == NULL) goto fail;
 
     server = allocate(sizeof(oto_server_tcp_t));
 
@@ -197,56 +228,63 @@ oto_server_tcp_t *oto_server_tcp_init(io_service_t *svc,
     pthread_mutex_init(&server->mutex, &server->mtx_attr);
 
     server->master = svc;
-    memcpy(&server->local.ep, ep, sizeof(server->local.ep));
     server->reuse_addr = reuse_addr;
 
-    memset(&server->local_addr, 0, sizeof(server->local_addr));
+    memset(&hint, 0, sizeof(hint));
+    hint.ai_family = AF_UNSPEC;
+    hint.ai_socktype = SOCK_STREAM;
+    hint.ai_protocol = 0;
+    hint.ai_flags = AI_V4MAPPED | AI_PASSIVE;
+    ret = getaddrinfo(addr, port, &hint, &addr_info);
+    if (ret != 0) goto fail;
 
-    switch (server->local.ep.ep_class) {
-    case EPC_IP4:
-        socket_family = AF_INET;
+    for (cur_addr = addr_info; cur_addr != NULL; cur_addr = cur_addr->ai_next) {
+        sfd = socket(cur_addr->ai_family,
+                     cur_addr->ai_socktype | SOCK_CLOEXEC,
+                     cur_addr->ai_protocol);
 
-        server->local_addr.sin_family = AF_INET;
-        server->local_addr.sin_port = htons(server->local.ep.ep.ip4.port);
-        server->local_addr.sin_addr.s_addr = htonl(
-            (server->local.ep.ep.ip4.addr[0] << 0x18) |
-            (server->local.ep.ep.ip4.addr[1] << 0x10) |
-            (server->local.ep.ep.ip4.addr[2] << 0x08) |
-            (server->local.ep.ep.ip4.addr[3])
-        );
+        if (sfd < 0) continue;
 
-        break;
+        if (setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR,
+                       &server->reuse_addr,
+                       sizeof(server->reuse_addr))) goto fail_socket;
 
-    case EPC_IP6:
-        socket_family = AF_INET6;
-        goto fail;
-        break;
+        if (!bind(sfd, cur_addr->ai_addr, cur_addr->ai_addrlen)) break;
 
-    default:
-        goto fail;
-        break;
+        shutdown(sfd, SHUT_RDWR);
+        close(sfd);
     }
 
-    server->local.skt = socket(socket_family,
-                               socket_type | SOCK_CLOEXEC /* | SOCK_NONBLOCK */,
-                               0);
+    if (cur_addr == NULL) goto fail;
 
-    if (server->local.skt < 0) goto fail;
+    server->local.ep.ep_type = EPT_TCP;
+    server->local.skt = sfd;
+    memcpy(&server->local.ep.addr, cur_addr->ai_addr, cur_addr->ai_addrlen);
 
-    if (setsockopt(server->local.skt,
-                   SOL_SOCKET,
-                   SO_REUSEADDR,
-                   &server->reuse_addr,
-                   sizeof(server->reuse_addr))) goto fail_socket;
-
-    if (bind(server->local.skt,
-             (const struct sockaddr *)(&server->local_addr),
-             sizeof(server->local_addr))) goto fail_socket;
+    switch (cur_addr->ai_family) {
+        case AF_INET:
+            server->local.ep.ep_class = EPC_IP4;
+            server->local.ep.ep.ip4.port = ntohs(server->local.ep.addr.ip4.sin_port);
+            addr_ip4 = ntohl(server->local.ep.addr.ip4.sin_addr.s_addr);
+            server->local.ep.ep.ip4.addr[0] = addr_ip4 >> 0x18;
+            server->local.ep.ep.ip4.addr[1] = (addr_ip4 >> 0x10) & 0xff;
+            server->local.ep.ep.ip4.addr[2] = (addr_ip4 >> 0x08) & 0xff;
+            server->local.ep.ep.ip4.addr[3] = addr_ip4 & 0xff;
+            break;
+        case AF_INET6:
+            server->local.ep.ep_class = EPC_IP6;
+            server->local.ep.ep.ip6.port = ntohs(server->local.ep.addr.ip6.sin6_port);
+            memcpy(server->local.ep.ep.ip6.addr,
+                   &server->local.ep.addr.ip6.sin6_addr,
+                   sizeof(server->local.ep.ep.ip6.addr));
+            break;
+    }
 
     if (listen(server->local.skt, 1)) goto fail_socket;
 
     server->connected = false;
 
+    freeaddrinfo(addr_info);
     return server;
 
 fail_socket:
@@ -254,6 +292,7 @@ fail_socket:
     close(server->local.skt);
 
 fail:
+    if (addr_info) freeaddrinfo(addr_info);
     if (server) deallocate(server);
     return NULL;
 }

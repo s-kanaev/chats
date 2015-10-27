@@ -70,7 +70,7 @@ int main(int argc, char *argv[]) {
     ep.ep.ip4.addr[2] = ep.ep.ip4.addr[3] = 0;
     ep.ep.ip4.port = 12345;
 
-    server = oto_server_tcp_init(iosvc, &ep, 1);
+    server = oto_server_tcp_init(iosvc, "0.0.0.0", "12345", 1);
     assert(server != NULL);
 
     context.buffer = buffer;

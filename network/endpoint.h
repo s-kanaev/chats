@@ -2,6 +2,7 @@
 # define _CHATS_NETWORK_H_
 
 # include <stdint.h>
+# include <netinet/in.h>
 
 typedef enum endpoint_class_enum {
     EPC_IP4,
@@ -27,7 +28,7 @@ struct ip4_endpoint;
 typedef struct ip4_endpoint ip4_endpoint_t;
 
 struct ip6_endpoint;
-typedef struct ip4_endpoint ip6_endpoint_t;
+typedef struct ip6_endpoint ip6_endpoint_t;
 
 struct ip4_endpoint {
     uint8_t addr[4];
@@ -35,7 +36,8 @@ struct ip4_endpoint {
 };
 
 struct ip6_endpoint {
-    /* TODO */
+    uint8_t addr[16];
+    uint16_t port;
 };
 
 struct endpoint {
@@ -45,6 +47,10 @@ struct endpoint {
         ip4_endpoint_t ip4;
         ip6_endpoint_t ip6;
     } ep;
+    union {
+        struct sockaddr_in ip4;
+        struct sockaddr_in6 ip6;
+    } addr;
 };
 
 struct endpoint_socket {
