@@ -27,7 +27,7 @@ struct oto_server_tcp {
 };
 
 static
-void oto_tcp_ip4_acceptor(int fd, io_svc_op_t op, void *ctx) {
+void oto_tcp_acceptor(int fd, io_svc_op_t op, void *ctx) {
     struct connection_acceptor *acceptor = ctx;
     oto_server_tcp_t *server = acceptor->host;
     uint32_t addr;
@@ -337,7 +337,7 @@ void oto_server_tcp_listen_sync(oto_server_tcp_t *server,
     acceptor->connection_cb = cb;
     acceptor->connection_ctx = ctx;
 
-    oto_tcp_ip4_acceptor(server->local.skt, IO_SVC_OP_READ, acceptor);
+    oto_tcp_acceptor(server->local.skt, IO_SVC_OP_READ, acceptor);
     pthread_mutex_unlock(&server->mutex);
 }
 
@@ -363,7 +363,7 @@ void oto_server_tcp_listen_async(oto_server_tcp_t *server,
                         server->local.skt,
                         IO_SVC_OP_READ,
                         true,
-                        oto_tcp_ip4_acceptor,
+                        oto_tcp_acceptor,
                         acceptor);
     pthread_mutex_unlock(&server->mutex);
 }
