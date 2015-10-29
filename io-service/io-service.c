@@ -143,6 +143,7 @@ void io_service_post_job(io_service_t *iosvc,
 
             lte->event.data.fd = lte->fd = fd;
             lte->event.events = 0;
+            memset(lte->job, 0, sizeof(lte->job));
         }
 
         if (lte->job[op].job == NULL) {
