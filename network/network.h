@@ -7,14 +7,19 @@
 # include <stddef.h>
 # include <sys/types.h>
 
+struct connection;
+typedef struct connection connection_t;
+
 /** callback on connection accept
  * \param [in] ep connected remote endpoint
  * \param [in] ctx user context
  * \param [in] err errno
  * \return \c true until the connection is rejected
  */
-typedef bool (*tcp_connection_cb_t)(const endpoint_t *ep, int err,
+typedef bool (*tcp_connection_cb_t)(const connection_t *ep, int err,
                                     void *ctx);
+typedef void (*tcp_client_connection_cb_t)(const endpoint_t *ep, int err,
+                                           void *ctx);
 /** callback on data sent
  * \param [in] err errno
  * \param [in] bytes bytes sent
@@ -39,7 +44,7 @@ struct connection_acceptor {
 
 struct connector {
     void *host;
-    tcp_connection_cb_t connection_cb;
+    tcp_client_connection_cb_t connection_cb;
     void *connection_ctx;
 };
 

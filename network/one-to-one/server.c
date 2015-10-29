@@ -84,7 +84,7 @@ void oto_tcp_acceptor(int fd, io_svc_op_t op, void *ctx) {
             break;
     }
 
-    if (!(*acceptor->connection_cb)(&server->remote.ep_skt.ep,
+    if (!(*acceptor->connection_cb)(&server->remote,
                                     errno,
                                     acceptor->connection_ctx)) {
         shutdown(server->remote.ep_skt.skt, SHUT_RDWR);

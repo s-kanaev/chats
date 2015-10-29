@@ -1,4 +1,5 @@
 #include "one-to-one/server.h"
+#include <connection/connection.h>
 #include "io-service.h"
 #include "memory.h"
 #include <stdbool.h>
@@ -15,8 +16,9 @@ typedef struct {
 void data_received(int err, size_t bytes, buffer_t *buffer, void *ctx);
 void data_sent(int err, size_t bytes, buffer_t *buffer, void *ctx);
 
-bool connection_accepted(const endpoint_t *ep, int err, void *ctx) {
+bool connection_accepted(const connection_t *conn, int err, void *ctx) {
     context_t *context = ctx;
+    const endpoint_t *ep = &conn->ep_skt.ep;
 
     fprintf(stdout, "Connection from: %u.%u.%u.%u : %u \n",
             (unsigned)ep->ep.ip4.addr[0],

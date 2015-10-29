@@ -2,6 +2,7 @@
 #include "memory.h"
 #include "endpoint.h"
 #include "io-service.h"
+#include "connection/connection.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -141,9 +142,8 @@ void client_tcp_connector(int fd, io_svc_op_t op, void *ctx) {
         ep = NULL;
     }
 
-    if (connector->connection_cb &&
-        !(*connector->connection_cb)(&client->remote, err, connector->connection_ctx))
-        client_tcp_disconnect(client);
+    if (connector->connection_cb)
+        (*connector->connection_cb)(&client->remote, err, connector->connection_ctx);
 
     deallocate(connector);
 }
@@ -340,7 +340,7 @@ void client_tcp_remote_ep(client_tcp_t *client, endpoint_t **ep) {
 
 void client_tcp_connect_sync(client_tcp_t *client,
                              const char *addr, const char *port,
-                             tcp_connection_cb_t cb, void *ctx) {
+                             tcp_client_connection_cb_t cb, void *ctx) {
     struct addrinfo *addr_info = NULL, *cur_addr, hint;
     endpoint_t *ep;
     int ret;
@@ -410,15 +410,13 @@ void client_tcp_connect_sync(client_tcp_t *client,
         ep = NULL;
     }
 
-    if ((cb && !(*cb)(ep, errno, ctx)))
-        client_tcp_disconnect(client);
-
+    if (cb) (*cb)(ep, errno, ctx);
     if (addr_info) freeaddrinfo(addr_info);
 }
 
 void client_tcp_connect_async(client_tcp_t *client,
                               const char *addr, const char *port,
-                              tcp_connection_cb_t cb, void *ctx) {
+                              tcp_client_connection_cb_t cb, void *ctx) {
     int flags;
     int errno_old;
     struct addrinfo *addr_info = NULL, *cur_addr, hint;

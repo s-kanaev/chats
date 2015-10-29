@@ -15,10 +15,10 @@ client_tcp_t *client_tcp_init(io_service_t *svc,
 void client_tcp_deinit(client_tcp_t *client);
 void client_tcp_connect_sync(client_tcp_t *client,
                              const char *addr, const char *port,
-                             tcp_connection_cb_t cb, void *ctx);
+                             tcp_client_connection_cb_t cb, void *ctx);
 void client_tcp_connect_async(client_tcp_t *client,
                               const char *addr, const char *port,
-                              tcp_connection_cb_t cb, void *ctx);
+                              tcp_client_connection_cb_t cb, void *ctx);
 void client_tcp_disconnect(client_tcp_t *client);
 void client_tcp_local_ep(client_tcp_t *client, endpoint_t **ep);
 void client_tcp_remote_ep(client_tcp_t *client, endpoint_t **ep);
