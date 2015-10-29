@@ -127,7 +127,7 @@ void io_service_post_job(io_service_t *iosvc,
                          void *ctx) {
     pthread_mutex_lock(&iosvc->object_mutex);
 
-    if (iosvc->allow_new) {
+    if (iosvc->allow_new && job) {
         job_t *new_job;
 
         lookup_table_element_t *lte;
@@ -136,15 +136,16 @@ void io_service_post_job(io_service_t *iosvc,
              lte = list_next_element(iosvc->lookup_table, lte))
             if (lte->fd == fd) break;
 
-        if (!lte || lte->job[op].job == NULL) {
-            if (!lte) {
-                lte = list_append(iosvc->lookup_table);
-                lte->event.data.fd = lte->fd = fd;
-                lte->event.events = 0;
-            }
+        if (!lte) {
+            lte = list_append(iosvc->lookup_table);
 
             assert(lte);
 
+            lte->event.data.fd = lte->fd = fd;
+            lte->event.events = 0;
+        }
+
+        if (lte->job[op].job == NULL) {
             lte->event.events |= OP_FLAGS[op];
             lte->job[op].job = job;
             lte->job[op].ctx = ctx;
