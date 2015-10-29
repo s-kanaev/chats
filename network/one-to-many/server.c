@@ -69,6 +69,7 @@ void tcp_acceptor(int fd, io_svc_op_t op, void *ctx) {
     assert(afd >= 0);
 
     connection->ep_skt.skt = afd;
+    connection->ep_skt.ep.ep_type = EPT_TCP;
 
     switch (len) {
         case sizeof(struct sockaddr_in):
