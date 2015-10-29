@@ -279,8 +279,12 @@ void oto_server_tcp_remote_ep(oto_server_tcp_t *server, endpoint_socket_t *ep) {
 void oto_server_tcp_send_sync(oto_server_tcp_t *server,
                               buffer_t *buffer,
                               network_send_recv_cb_t cb, void *ctx) {
-    struct send_recv_tcp_buffer *sb = allocate(sizeof(struct send_recv_tcp_buffer));
+    struct send_recv_tcp_buffer *sb;
 
+    if (!server || !buffer || !buffer_size(buffer))
+        return;
+
+    sb = allocate(sizeof(struct send_recv_tcp_buffer));
     assert(sb != NULL);
 
     sb->buffer = buffer;
@@ -296,8 +300,12 @@ void oto_server_tcp_send_sync(oto_server_tcp_t *server,
 void oto_server_tcp_send_async(oto_server_tcp_t *server,
                                buffer_t *buffer,
                                network_send_recv_cb_t cb, void *ctx) {
-    struct send_recv_tcp_buffer *sb = allocate(sizeof(struct send_recv_tcp_buffer));
+    struct send_recv_tcp_buffer *sb;
 
+    if (!server || !buffer || !buffer_size(buffer))
+        return;
+
+    sb = allocate(sizeof(struct send_recv_tcp_buffer));
     assert(sb != NULL);
 
     sb->buffer = buffer;
@@ -313,8 +321,12 @@ void oto_server_tcp_send_async(oto_server_tcp_t *server,
 void oto_server_tcp_recv_sync(oto_server_tcp_t *server,
                               buffer_t *buffer,
                               network_send_recv_cb_t cb, void *ctx) {
-    struct send_recv_tcp_buffer *rb = allocate(sizeof(struct send_recv_tcp_buffer));
+    struct send_recv_tcp_buffer *rb;
 
+    if (!server || !buffer || !buffer_size(buffer))
+        return;
+
+    rb = allocate(sizeof(struct send_recv_tcp_buffer));
     assert(rb != NULL);
 
     rb->buffer = buffer;
@@ -330,8 +342,12 @@ void oto_server_tcp_recv_sync(oto_server_tcp_t *server,
 void oto_server_tcp_recv_async(oto_server_tcp_t *server,
                                buffer_t *buffer,
                                network_send_recv_cb_t cb, void *ctx) {
-    struct send_recv_tcp_buffer *rb = allocate(sizeof(struct send_recv_tcp_buffer));
+    struct send_recv_tcp_buffer *rb;
 
+    if (!server || !buffer || !buffer_size(buffer))
+        return;
+
+    rb = allocate(sizeof(struct send_recv_tcp_buffer));
     assert(rb != NULL);
 
     rb->buffer = buffer;
