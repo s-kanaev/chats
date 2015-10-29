@@ -25,7 +25,6 @@ struct oto_server_tcp {
     io_service_t *master;
     endpoint_socket_t local;
     connection_t remote;
-    /*endpoint_socket_t remote;*/
 };
 
 static
@@ -90,126 +89,11 @@ void oto_tcp_acceptor(int fd, io_svc_op_t op, void *ctx) {
         shutdown(server->remote.ep_skt.skt, SHUT_RDWR);
         close(server->remote.ep_skt.skt);
         server->connected = false;
-        pthread_mutex_unlock(&server->mutex);
-        return;
     }
 
     deallocate(ctx);
     pthread_mutex_unlock(&server->mutex);
 }
-
-#if 0
-static
-void oto_send_recv_sync(struct send_recv_tcp_buffer *srb) {
-    oto_server_tcp_t *server;
-    buffer_t *buffer;
-    size_t bytes_op;
-    ssize_t bytes_sent_cur;
-    network_tcp_op_t op;
-    NETWORK_TCP_OPERATOR oper;
-
-    assert(srb != NULL);
-
-    server = srb->host;
-    buffer = srb->buffer;
-    op = srb->op;
-    oper = TCP_OPERATORS[op].op;
-
-    assert(server != NULL);
-    assert(buffer != NULL);
-
-    bytes_op = srb->bytes_operated;
-
-    if (!server->connected) return;
-
-    pthread_mutex_lock(&server->mutex);
-
-    while (bytes_op < buffer_size(buffer)) {
-        errno = 0;
-        bytes_sent_cur = (*oper)(server->remote.skt,
-                                 buffer_data(buffer) + bytes_op,
-                                 buffer_size(buffer) - bytes_op,
-                                 MSG_NOSIGNAL);
-        if (bytes_sent_cur < 0) break;
-
-        bytes_op += bytes_sent_cur;
-    }
-
-    srb->bytes_operated = bytes_op;
-
-    (*srb->cb)(errno, bytes_op, buffer, srb->ctx);
-
-    pthread_mutex_unlock(&server->mutex);
-
-    deallocate(srb);
-}
-
-static
-void oto_send_recv_async(int fd, io_svc_op_t op_, void *ctx) {
-    struct send_recv_tcp_buffer *srb = ctx;
-    oto_server_tcp_t *server;
-    buffer_t *buffer;
-    size_t bytes_op;
-    ssize_t bytes_op_cur;
-    network_tcp_op_t op;
-    NETWORK_TCP_OPERATOR oper;
-    io_svc_op_t io_svc_op;
-
-    assert(srb != NULL);
-
-    server = srb->host;
-    buffer = srb->buffer;
-    op = srb->op;
-    oper = TCP_OPERATORS[op].op;
-    io_svc_op = TCP_OPERATORS[op].io_svc_op;
-
-    assert(server != NULL);
-    assert(buffer != NULL);
-
-    bytes_op = srb->bytes_operated;
-
-    if (!server->connected) return;
-
-    pthread_mutex_lock(&server->mutex);
-
-    errno = 0;
-    bytes_op_cur = (*oper)(server->remote.skt,
-                           buffer_data(buffer) + bytes_op,
-                           buffer_size(buffer) - bytes_op,
-                           MSG_DONTWAIT | MSG_NOSIGNAL);
-
-    if (bytes_op_cur < 0) {
-        if (errno == EAGAIN || errno == EWOULDBLOCK)
-            io_service_post_job(server->master,
-                                server->remote.skt,
-                                io_svc_op,
-                                true,
-                                oto_send_recv_async,
-                                srb);
-        else {
-            (*srb->cb)(errno, bytes_op, buffer, srb->ctx);
-            deallocate(srb);
-        }
-    }
-    else {
-        bytes_op += bytes_op_cur;
-        srb->bytes_operated = bytes_op;
-        if (bytes_op < buffer_size(buffer))
-            io_service_post_job(server->master,
-                                server->remote.skt,
-                                io_svc_op,
-                                true,
-                                oto_send_recv_async,
-                                srb);
-        else {
-            (*srb->cb)(errno, bytes_op, buffer, srb->ctx);
-            deallocate(srb);
-        }
-    }
-
-    pthread_mutex_unlock(&server->mutex);
-}
-#endif
 
 oto_server_tcp_t *oto_server_tcp_init(io_service_t *svc,
                                       const char *addr, const char *port,
@@ -376,7 +260,7 @@ void oto_server_tcp_listen_async(oto_server_tcp_t *server,
 }
 
 void oto_server_tcp_local_ep(oto_server_tcp_t *server, endpoint_socket_t *ep) {
-    if (!server) return;
+    if (!server || !ep) return;
 
     pthread_mutex_lock(&server->mutex);
     memcpy(ep, &server->local, sizeof(*ep));
