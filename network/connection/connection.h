@@ -10,9 +10,9 @@ typedef struct connection {
     endpoint_socket_t ep_skt;
 } connection_t;
 
-void connection_send_recv_sync(connection_t *connection,
+void connection_send_recv_sync(const connection_t *connection,
                                struct send_recv_tcp_buffer *srb);
-void connection_send_recv_async(connection_t *connection,
+void connection_send_recv_async(const connection_t *connection,
                                 struct send_recv_tcp_buffer *srb,
                                 io_service_t *iosvc);
 

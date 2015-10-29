@@ -7,7 +7,7 @@
 
 struct async_sr {
     struct send_recv_tcp_buffer *srb;
-    connection_t *connection;
+    const connection_t *connection;
     io_service_t *iosvc;
 };
 
@@ -15,7 +15,7 @@ static
 void send_recv_async_tpl(int fd, io_svc_op_t op_, void *ctx) {
     struct async_sr *sr = ctx;
     struct send_recv_tcp_buffer *srb = sr->srb;
-    connection_t *connection = sr->connection;
+    const connection_t *connection = sr->connection;
     io_service_t *iosvc = sr->iosvc;
 
     buffer_t *buffer = srb->buffer;
@@ -63,7 +63,7 @@ void send_recv_async_tpl(int fd, io_svc_op_t op_, void *ctx) {
     }
 }
 
-void connection_send_recv_sync(connection_t *connection,
+void connection_send_recv_sync(const connection_t *connection,
                                struct send_recv_tcp_buffer *srb) {
     buffer_t *buffer;
     size_t bytes_op;
@@ -102,7 +102,7 @@ void connection_send_recv_sync(connection_t *connection,
     deallocate(srb);
 }
 
-void connection_send_recv_async(connection_t *connection,
+void connection_send_recv_async(const connection_t *connection,
                                 struct send_recv_tcp_buffer *srb,
                                 io_service_t *iosvc) {
     struct async_sr *sr = allocate(sizeof(struct async_sr));
