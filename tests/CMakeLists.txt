@@ -9,4 +9,11 @@ add_executable(oto-server-test oto-server.c)
 target_link_libraries(oto-server-test chats-io-service
                                       chats-thread-pool
                                       chats-timer
-                                      chats-oto)
+                                      chats-network)
+
+add_executable(client-tcp-test tcp-client.c)
+target_link_libraries(client-tcp-test chats-io-service
+                                      chats-thread-pool
+                                      chats-timer
+                                      chats-network)
+

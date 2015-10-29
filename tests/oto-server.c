@@ -1,4 +1,5 @@
 #include "one-to-one/server.h"
+#include <connection/connection.h>
 #include "io-service.h"
 #include "memory.h"
 #include <stdbool.h>
@@ -15,8 +16,9 @@ typedef struct {
 void data_received(int err, size_t bytes, buffer_t *buffer, void *ctx);
 void data_sent(int err, size_t bytes, buffer_t *buffer, void *ctx);
 
-bool connection_accepted(endpoint_t *ep, int err, void *ctx) {
+bool connection_accepted(const connection_t *conn, int err, void *ctx) {
     context_t *context = ctx;
+    const endpoint_t *ep = &conn->ep_skt.ep;
 
     fprintf(stdout, "Connection from: %u.%u.%u.%u : %u \n",
             (unsigned)ep->ep.ip4.addr[0],
@@ -56,6 +58,7 @@ int main(int argc, char *argv[]) {
     io_service_t *iosvc;
     buffer_t *buffer;
     context_t context;
+    endpoint_t ep;
 
     buffer = buffer_init(10, buffer_policy_no_shrink);
     assert(buffer != NULL);
@@ -63,7 +66,13 @@ int main(int argc, char *argv[]) {
     iosvc = io_service_init();
     assert(iosvc != NULL);
 
-    server = oto_server_tcp_init(iosvc, EPC_IP4, "0.0.0.0", 12345);
+    ep.ep_type = EPT_TCP;
+    ep.ep_class = EPC_IP4;
+    ep.ep.ip4.addr[0] = ep.ep.ip4.addr[1] =
+    ep.ep.ip4.addr[2] = ep.ep.ip4.addr[3] = 0;
+    ep.ep.ip4.port = 12345;
+
+    server = oto_server_tcp_init(iosvc, "0.0.0.0", "12345", 1);
     assert(server != NULL);
 
     context.buffer = buffer;
@@ -77,6 +86,7 @@ int main(int argc, char *argv[]) {
 
     oto_server_tcp_deinit(server);
     io_service_deinit(iosvc);
+    buffer_deinit(buffer);
 
     return 0;
 }
