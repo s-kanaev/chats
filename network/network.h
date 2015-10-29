@@ -13,7 +13,7 @@
  * \param [in] err errno
  * \return \c true until the connection is rejected
  */
-typedef bool (*tcp_connection_cb_t)(endpoint_t *ep, int err,
+typedef bool (*tcp_connection_cb_t)(const endpoint_t *ep, int err,
                                     void *ctx);
 /** callback on data sent
  * \param [in] err errno

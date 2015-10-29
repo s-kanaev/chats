@@ -39,7 +39,7 @@ void data_sent(int err, size_t bytes, buffer_t *buffer, void *ctx) {
     client_tcp_recv_async(context->client, buffer, data_received, ctx);
 }
 
-bool connected(endpoint_t *ep, int err,
+bool connected(const endpoint_t *ep, int err,
                void *ctx) {
     context_t *context = ctx;
 
