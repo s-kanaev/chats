@@ -9,6 +9,9 @@
 struct client_tcp;
 typedef struct client_tcp client_tcp_t;
 
+struct client_udp;
+typedef struct client_udp client_udp_t;
+
 client_tcp_t *client_tcp_init(io_service_t *svc,
                               const char *addr, const char *port,
                               int reuse_addr);
@@ -29,6 +32,20 @@ void client_tcp_send_async(client_tcp_t *client, buffer_t *buffer,
 void client_tcp_recv_sync(client_tcp_t *client, buffer_t *buffer,
                           network_send_recv_cb_t cb, void *ctx);
 void client_tcp_recv_async(client_tcp_t *client, buffer_t *buffer,
+                           network_send_recv_cb_t cb, void *ctx);
+
+client_udp_t *client_udp_init(io_service_t *svc,
+                              const char *addr, const char *port,
+                              int reuse_addr);
+void client_udp_deinit(client_udp_t *client);
+void client_udp_local_ep(client_udp_t *client, endpoint_t **ep);
+void client_udp_send_sync(client_udp_t *client, buffer_t *buffer,
+                          network_send_recv_cb_t cb, void *ctx);
+void client_udp_send_async(client_udp_t *client, buffer_t *buffer,
+                           network_send_recv_cb_t cb, void *ctx);
+void client_udp_recv_sync(client_udp_t *client, buffer_t *buffer,
+                          network_send_recv_cb_t cb, void *ctx);
+void client_udp_recv_async(client_udp_t *client, buffer_t *buffer,
                            network_send_recv_cb_t cb, void *ctx);
 
 #endif /* _CHATS_CLIENT_H_ */
