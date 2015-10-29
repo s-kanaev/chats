@@ -49,8 +49,8 @@ void data_received(int err, size_t bytes, buffer_t *buffer, void *ctx) {
 
     for (i = 0; i < (buffer_size(buffer) >> 0x01); ++i) {
         char tmp = data[i];
-        data[i] = data[buffer_size(buffer) - i];
-        data[buffer_size(buffer) - i] = tmp;
+        data[i] = data[buffer_size(buffer) - i - 1];
+        data[buffer_size(buffer) - i - 1] = tmp;
     }
 
     /* FIXME */
