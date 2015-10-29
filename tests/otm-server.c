@@ -53,7 +53,6 @@ void data_received(int err, size_t bytes, buffer_t *buffer, void *ctx) {
         data[buffer_size(buffer) - i - 1] = tmp;
     }
 
-    /* FIXME */
     otm_server_tcp_send_async(conn->host, conn, buffer, data_sent, ctx);
 }
 
