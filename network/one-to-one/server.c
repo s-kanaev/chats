@@ -1,6 +1,7 @@
 #include "server.h"
 #include "memory.h"
 #include "endpoint.h"
+#include "connection/connection.h"
 #include "io-service.h"
 
 #include <assert.h>
@@ -23,7 +24,8 @@ struct oto_server_tcp {
     pthread_mutex_t mutex;
     io_service_t *master;
     endpoint_socket_t local;
-    endpoint_socket_t remote;
+    connection_t remote;
+    /*endpoint_socket_t remote;*/
 };
 
 static
@@ -37,15 +39,17 @@ void oto_tcp_acceptor(int fd, io_svc_op_t op, void *ctx) {
 
     pthread_mutex_lock(&server->mutex);
 
+    server->remote.host = server;
+
     errno = 0;
     switch (server->local.ep.ep_class) {
         case EPC_IP4:
-            len = sizeof(server->remote.ep.addr.ip4);
-            dest_addr = (struct sockaddr *)&server->remote.ep.addr.ip4;
+            len = sizeof(server->remote.ep_skt.ep.addr.ip4);
+            dest_addr = (struct sockaddr *)&server->remote.ep_skt.ep.addr.ip4;
             break;
         case EPC_IP6:
-            len = sizeof(server->remote.ep.addr.ip6);
-            dest_addr = (struct sockaddr *)&server->remote.ep.addr.ip6;
+            len = sizeof(server->remote.ep_skt.ep.addr.ip6);
+            dest_addr = (struct sockaddr *)&server->remote.ep_skt.ep.addr.ip6;
             break;
         default:
             assert(0);
@@ -56,36 +60,35 @@ void oto_tcp_acceptor(int fd, io_svc_op_t op, void *ctx) {
     assert(afd >= 0);
 
     server->connected = true;
-    server->remote.skt = afd;
-    //server->remote.ep.ep_class = server->local.ep.ep_class;
+    server->remote.ep_skt.skt = afd;
 
     switch (len) {
         case sizeof(struct sockaddr_in):
-            server->remote.ep.ep_class = EPC_IP4;
-            server->remote.ep.ep.ip4.port = ntohs(server->remote.ep.addr.ip4.sin_port);
-            addr = ntohl(server->remote.ep.addr.ip4.sin_addr.s_addr);
-            server->remote.ep.ep.ip4.addr[0] = addr >> 0x18;
-            server->remote.ep.ep.ip4.addr[1] = (addr >> 0x10) & 0xff;
-            server->remote.ep.ep.ip4.addr[2] = (addr >> 0x08) & 0xff;
-            server->remote.ep.ep.ip4.addr[3] = addr & 0xff;
+            server->remote.ep_skt.ep.ep_class = EPC_IP4;
+            server->remote.ep_skt.ep.ep.ip4.port = ntohs(server->remote.ep_skt.ep.addr.ip4.sin_port);
+            addr = ntohl(server->remote.ep_skt.ep.addr.ip4.sin_addr.s_addr);
+            server->remote.ep_skt.ep.ep.ip4.addr[0] = addr >> 0x18;
+            server->remote.ep_skt.ep.ep.ip4.addr[1] = (addr >> 0x10) & 0xff;
+            server->remote.ep_skt.ep.ep.ip4.addr[2] = (addr >> 0x08) & 0xff;
+            server->remote.ep_skt.ep.ep.ip4.addr[3] = addr & 0xff;
             break;
         case sizeof(struct sockaddr_in6):
-            server->remote.ep.ep_class = EPC_IP6;
-            server->remote.ep.ep.ip6.port = ntohs(server->remote.ep.addr.ip6.sin6_port);
-            memcpy(server->remote.ep.ep.ip6.addr,
-                   &server->remote.ep.addr.ip6.sin6_addr,
-                   sizeof(server->remote.ep.ep.ip6.addr));
+            server->remote.ep_skt.ep.ep_class = EPC_IP6;
+            server->remote.ep_skt.ep.ep.ip6.port = ntohs(server->remote.ep_skt.ep.addr.ip6.sin6_port);
+            memcpy(server->remote.ep_skt.ep.ep.ip6.addr,
+                   &server->remote.ep_skt.ep.addr.ip6.sin6_addr,
+                   sizeof(server->remote.ep_skt.ep.ep.ip6.addr));
             break;
         default:
             assert(0);
             break;
     }
 
-    if (!(*acceptor->connection_cb)(&server->remote.ep,
+    if (!(*acceptor->connection_cb)(&server->remote.ep_skt.ep,
                                     errno,
                                     acceptor->connection_ctx)) {
-        shutdown(server->remote.skt, SHUT_RDWR);
-        close(server->remote.skt);
+        shutdown(server->remote.ep_skt.skt, SHUT_RDWR);
+        close(server->remote.ep_skt.skt);
         server->connected = false;
         pthread_mutex_unlock(&server->mutex);
         return;
@@ -95,6 +98,7 @@ void oto_tcp_acceptor(int fd, io_svc_op_t op, void *ctx) {
     pthread_mutex_unlock(&server->mutex);
 }
 
+#if 0
 static
 void oto_send_recv_sync(struct send_recv_tcp_buffer *srb) {
     oto_server_tcp_t *server;
@@ -205,6 +209,7 @@ void oto_send_recv_async(int fd, io_svc_op_t op_, void *ctx) {
 
     pthread_mutex_unlock(&server->mutex);
 }
+#endif
 
 oto_server_tcp_t *oto_server_tcp_init(io_service_t *svc,
                                       const char *addr, const char *port,
@@ -229,6 +234,8 @@ oto_server_tcp_t *oto_server_tcp_init(io_service_t *svc,
 
     server->master = svc;
     server->reuse_addr = reuse_addr;
+
+    memset(&server->remote, 0, sizeof(server->remote));
 
     memset(&hint, 0, sizeof(hint));
     hint.ai_family = AF_UNSPEC;
@@ -315,8 +322,8 @@ void oto_server_tcp_deinit(oto_server_tcp_t *server) {
 void oto_server_tcp_disconnect(oto_server_tcp_t *server) {
     if (!server) return;
 
-    shutdown(server->remote.skt, SHUT_RDWR);
-    close(server->remote.skt);
+    shutdown(server->remote.ep_skt.skt, SHUT_RDWR);
+    close(server->remote.ep_skt.skt);
 }
 
 void oto_server_tcp_listen_sync(oto_server_tcp_t *server,
@@ -381,7 +388,7 @@ void oto_server_tcp_remote_ep(oto_server_tcp_t *server, endpoint_socket_t *ep) {
 
     pthread_mutex_lock(&server->mutex);
     if (server->connected)
-        memcpy(ep, &server->remote, sizeof(*ep));
+        memcpy(ep, &server->remote.ep_skt, sizeof(*ep));
     pthread_mutex_unlock(&server->mutex);
 }
 
@@ -399,7 +406,7 @@ void oto_server_tcp_send_sync(oto_server_tcp_t *server,
     sb->ctx = ctx;
     sb->op = NETWORK_TCP_OP_SEND;
 
-    oto_send_recv_sync(sb);
+    connection_send_recv_sync(&server->remote, sb);
 }
 
 void oto_server_tcp_send_async(oto_server_tcp_t *server,
@@ -416,12 +423,7 @@ void oto_server_tcp_send_async(oto_server_tcp_t *server,
     sb->ctx = ctx;
     sb->op = NETWORK_TCP_OP_SEND;
 
-    io_service_post_job(server->master,
-                        server->remote.skt,
-                        IO_SVC_OP_WRITE,
-                        true,
-                        oto_send_recv_async,
-                        sb);
+    connection_send_recv_async(&server->remote, sb, server->master);
 }
 
 void oto_server_tcp_recv_sync(oto_server_tcp_t *server,
@@ -438,7 +440,7 @@ void oto_server_tcp_recv_sync(oto_server_tcp_t *server,
     rb->ctx = ctx;
     rb->op = NETWORK_TCP_OP_RECEIVE;
 
-    oto_send_recv_sync(rb);
+    connection_send_recv_sync(&server->remote, rb);
 }
 
 void oto_server_tcp_recv_async(oto_server_tcp_t *server,
@@ -455,10 +457,5 @@ void oto_server_tcp_recv_async(oto_server_tcp_t *server,
     rb->ctx = ctx;
     rb->op = NETWORK_TCP_OP_RECEIVE;
 
-    io_service_post_job(server->master,
-                        server->remote.skt,
-                        IO_SVC_OP_READ,
-                        true,
-                        oto_send_recv_async,
-                        rb);
+    connection_send_recv_async(&server->remote, rb, server->master);
 }
