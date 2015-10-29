@@ -57,9 +57,10 @@ void data_received(int err, size_t bytes, buffer_t *buffer, void *ctx) {
 }
 
 void data_sent(int err, size_t bytes, buffer_t *buffer, void *ctx) {
-    context_t *context = ctx;
+    connection_t *conn = ctx;
     fprintf(stdout, "Sending error: %d: %s\n", err, strerror(err));
     //io_service_stop(context->service, true);
+    otm_server_tcp_disconnect(conn->host, conn);
 }
 
 int main(void) {
