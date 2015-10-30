@@ -17,3 +17,8 @@ target_link_libraries(client-tcp-test chats-io-service
                                       chats-timer
                                       chats-network)
 
+add_executable(otm-server-test otm-server.c)
+target_link_libraries(otm-server-test chats-io-service
+                                      chats-thread-pool
+                                      chats-timer
+                                      chats-network)
