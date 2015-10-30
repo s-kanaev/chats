@@ -30,46 +30,71 @@ struct client_tcp {
     endpoint_t remote;
 };
 
+struct client_udp {
+    int reuse_addr;
+    pthread_mutexattr_t mtx_attr;
+    pthread_mutex_t mutex;
+    io_service_t *master;
+    char *local_addr;
+    char *local_port;
+    endpoint_socket_t local;
+};
+
 static
-bool client_tcp_init_socket(client_tcp_t *client) {
+bool client_init_socket(endpoint_type_t ept, endpoint_class_t epc,
+                        const char *addr, const char *port, int reuse,
+                        endpoint_socket_t *ep_skt) {
+    static const int TYPE[] = {
+        [EPT_TCP] = SOCK_STREAM,
+        [EPT_UDP] = SOCK_DGRAM
+    };
+    static const int FAMILY[] = {
+        [EPC_IP4] = AF_INET,
+        [EPC_IP6] = AF_INET6,
+        [EPC_NONE] = AF_UNSPEC
+    };
+
     struct addrinfo *addr_info = NULL, *cur_addr, hint;
-    int ret, sfd;
-    uint32_t addr;
+    int ret, sfd = -1;
+    uint32_t ip4addr;
     struct sockaddr_in local_addr;
     socklen_t len = sizeof(local_addr);
 
-    if (client->local.skt != -1) return false;
+    assert(ept < EPT_MAX && epc <= EPC_MAX);
 
-    if (client->local_addr == NULL && client->local_port == NULL) {
-        sfd = socket(AF_INET,
-                     SOCK_STREAM | SOCK_CLOEXEC,
+    ep_skt->skt = -1;
+
+    if (addr == NULL && port == NULL) {
+        if (epc == EPC_NONE) epc = EPC_IP4;
+        sfd = socket(FAMILY[epc],
+                     TYPE[ept] | SOCK_CLOEXEC,
                      0);
 
-        assert(sfd >= 0);
+        if (sfd < 0) goto fail;
 
         if (setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR,
-            &client->reuse_addr,
-            sizeof(client->reuse_addr))) goto fail;
+                       &reuse,
+                       sizeof(reuse))) goto fail;
 
-        client->local.ep.ep_type = EPT_TCP;
-        client->local.skt = sfd;
+        ep_skt->skt = sfd;
+        ep_skt->ep.ep_type = EPT_UDP;
         assert(0 == getsockname(sfd, (struct sockaddr *)&local_addr, &len));
 
-        client->local.ep.ep_class = EPC_IP4;
-        client->local.ep.ep.ip4.port = ntohs(client->local.ep.addr.ip4.sin_port);
-        addr = ntohl(client->local.ep.addr.ip4.sin_addr.s_addr);
-        client->local.ep.ep.ip4.addr[0] = addr >> 0x18;
-        client->local.ep.ep.ip4.addr[1] = (addr >> 0x10) & 0xff;
-        client->local.ep.ep.ip4.addr[2] = (addr >> 0x08) & 0xff;
-        client->local.ep.ep.ip4.addr[3] = addr & 0xff;
-    }
+        ep_skt->ep.ep_class = EPC_IP4;
+        ep_skt->ep.ep.ip4.port = ntohs(ep_skt->ep.addr.ip4.sin_port);
+        ip4addr = ntohl(ep_skt->ep.addr.ip4.sin_addr.s_addr);
+        ep_skt->ep.ep.ip4.addr[0] = ip4addr >> 0x18;
+        ep_skt->ep.ep.ip4.addr[1] = (ip4addr >> 0x10) & 0xff;
+        ep_skt->ep.ep.ip4.addr[2] = (ip4addr >> 0x08) & 0xff;
+        ep_skt->ep.ep.ip4.addr[3] = ip4addr & 0xff;
+    } /* if (addr == NULL && port == NULL) */
     else {
         memset(&hint, 0, sizeof(hint));
-        hint.ai_family = AF_UNSPEC;
-        hint.ai_socktype = SOCK_STREAM;
+        hint.ai_family = FAMILY[epc];
+        hint.ai_socktype = TYPE[ept];
         hint.ai_protocol = 0;
         hint.ai_flags = AI_V4MAPPED | AI_PASSIVE;
-        ret = getaddrinfo(client->local_addr, client->local_port, &hint, &addr_info);
+        ret = getaddrinfo(addr, port, &hint, &addr_info);
         if (ret != 0) goto fail;
 
         for (cur_addr = addr_info; cur_addr != NULL; cur_addr = cur_addr->ai_next) {
@@ -80,8 +105,8 @@ bool client_tcp_init_socket(client_tcp_t *client) {
             if (sfd < 0) continue;
 
             if (setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR,
-                           &client->reuse_addr,
-                           sizeof(client->reuse_addr))) goto fail;
+                           &reuse,
+                           sizeof(reuse))) goto fail;
 
             if (!bind(sfd, cur_addr->ai_addr, cur_addr->ai_addrlen)) break;
 
@@ -91,29 +116,29 @@ bool client_tcp_init_socket(client_tcp_t *client) {
 
         if (cur_addr == NULL) goto fail;
 
-        client->local.ep.ep_type = EPT_TCP;
-        client->local.skt = sfd;
-        memcpy(&client->local.ep.addr, cur_addr->ai_addr, cur_addr->ai_addrlen);
+        ep_skt->ep.ep_type = TYPE[ept];
+        ep_skt->skt = sfd;
+        memcpy(&ep_skt->ep.addr, cur_addr->ai_addr, cur_addr->ai_addrlen);
 
         switch (cur_addr->ai_family) {
             case AF_INET:
-                client->local.ep.ep_class = EPC_IP4;
-                client->local.ep.ep.ip4.port = ntohs(client->local.ep.addr.ip4.sin_port);
-                addr = ntohl(client->local.ep.addr.ip4.sin_addr.s_addr);
-                client->local.ep.ep.ip4.addr[0] = addr >> 0x18;
-                client->local.ep.ep.ip4.addr[1] = (addr >> 0x10) & 0xff;
-                client->local.ep.ep.ip4.addr[2] = (addr >> 0x08) & 0xff;
-                client->local.ep.ep.ip4.addr[3] = addr & 0xff;
+                ep_skt->ep.ep_class = EPC_IP4;
+                ep_skt->ep.ep.ip4.port = ntohs(ep_skt->ep.addr.ip4.sin_port);
+                ip4addr = ntohl(ep_skt->ep.addr.ip4.sin_addr.s_addr);
+                ep_skt->ep.ep.ip4.addr[0] = ip4addr >> 0x18;
+                ep_skt->ep.ep.ip4.addr[1] = (ip4addr >> 0x10) & 0xff;
+                ep_skt->ep.ep.ip4.addr[2] = (ip4addr >> 0x08) & 0xff;
+                ep_skt->ep.ep.ip4.addr[3] = ip4addr & 0xff;
                 break;
             case AF_INET6:
-                client->local.ep.ep_class = EPC_IP6;
-                client->local.ep.ep.ip6.port = ntohs(client->local.ep.addr.ip6.sin6_port);
-                memcpy(client->local.ep.ep.ip6.addr,
-                       &client->local.ep.addr.ip6.sin6_addr,
-                       sizeof(client->local.ep.ep.ip6.addr));
+                ep_skt->ep.ep_class = EPC_IP6;
+                ep_skt->ep.ep.ip6.port = ntohs(ep_skt->ep.addr.ip6.sin6_port);
+                memcpy(ep_skt->ep.ep.ip6.addr,
+                       &ep_skt->ep.addr.ip6.sin6_addr,
+                       sizeof(ep_skt->ep.ep.ip6.addr));
                 break;
         }
-    }
+    } /* if (addr == NULL && port == NULL) - else */
 
     if (addr_info) freeaddrinfo(addr_info);
     return true;
@@ -259,6 +284,7 @@ void client_send_recv_async(int fd, io_svc_op_t op_, void *ctx) {
     pthread_mutex_unlock(&client->mutex);
 }
 
+/********************** TCP client **********************************/
 client_tcp_t *client_tcp_init(io_service_t *svc,
                               const char *addr, const char *port,
                               int reuse_addr) {
@@ -350,7 +376,15 @@ void client_tcp_connect_sync(client_tcp_t *client,
         (*cb)(NULL, EADDRNOTAVAIL, ctx);
         return;
     }
-    if (!client_tcp_init_socket(client)) return;
+
+    if (client->local.skt >= 0) {
+        (*cb)(&client->local.ep, EISCONN, ctx);
+        return;
+    }
+
+    if (!client_init_socket(EPT_TCP, EPC_NONE,
+                            client->local_addr, client->local_port,
+                            client->reuse_addr, &client->local)) return;
 
     memset(&hint, 0, sizeof(hint));
 
@@ -425,7 +459,15 @@ void client_tcp_connect_async(client_tcp_t *client,
     uint32_t local_addr;
 
     if (!client || !addr || !port) return;
-    if (!client_tcp_init_socket(client)) return;
+
+    if (client->local.skt >= 0) {
+        (*cb)(&client->local.ep, EISCONN, ctx);
+        return;
+    }
+
+    if (!client_init_socket(EPT_TCP, EPC_NONE,
+                            client->local_addr, client->local_port,
+                            client->reuse_addr, &client->local)) return;
 
     connector = allocate(sizeof(struct connector));
     assert(connector);
@@ -577,3 +619,5 @@ void client_tcp_send_async(client_tcp_t *client, buffer_t *buffer,
                         client_send_recv_async,
                         sb);
 }
+
+/********************** UDP client **********************************/
