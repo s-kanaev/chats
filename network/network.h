@@ -4,11 +4,16 @@
 # include "endpoint.h"
 # include "memory.h"
 # include "io-service.h"
+
 # include <stddef.h>
+# include <stdbool.h>
 # include <sys/types.h>
 
 struct connection;
 typedef struct connection connection_t;
+
+struct send_recv_buffer;
+typedef struct send_recv_buffer srb_t;
 
 /** callback on connection accept
  * \param [in] ep connected remote endpoint
@@ -30,11 +35,20 @@ typedef void (*network_send_recv_cb_t)(int err,
                                        size_t bytes, buffer_t *buffer,
                                        void *ctx);
 
-typedef enum network_operation_tcp_enum {
-    NETWORK_TCP_OP_RECEIVE = 0,
-    NETWORK_TCP_OP_SEND = 1,
-    NETWORK_TCP_OP_COUNT
-} network_tcp_op_t;
+typedef void (*srb_cb_t)(srb_t *srb, endpoint_t ep, int err, void *ctx);
+
+typedef enum srb_operation_enum {
+    SRB_OP_SEND = 0,
+    SRB_OP_RECV,
+    SRB_OP_MAX,
+    SRB_OP_NONE = SRB_OP_MAX
+} srb_operation_t;
+
+// typedef enum network_operation_tcp_enum {
+//     NETWORK_TCP_OP_RECEIVE = 0,
+//     NETWORK_TCP_OP_SEND = 1,
+//     NETWORK_TCP_OP_COUNT
+// } network_tcp_op_t;
 
 struct connection_acceptor {
     void *host;
@@ -48,22 +62,33 @@ struct connector {
     void *connection_ctx;
 };
 
-struct send_recv_tcp_buffer {
-    network_tcp_op_t op;
-    void *host;
+struct send_recv_buffer {
+    struct {
+        endpoint_type_t type;
+        srb_operation_t op;
+    } operation;
+
+    struct {
+        endpoint_socket_t *src;
+        endpoint_socket_t *dst;
+//         union {
+//             struct {
+//                 endpoint_t *dst;
+//             } tcp;
+//             struct {
+//                 endpoint_t *dst;
+//             } udp;
+//         } dst;
+    } aux;
+
+    io_service_t *iosvc;
     buffer_t *buffer;
     size_t bytes_operated;
-    network_send_recv_cb_t cb;
+
+    srb_cb_t cb;
     void *ctx;
 };
 
-typedef ssize_t (*NETWORK_TCP_OPERATOR)(int skt_fd, void *b, size_t len, int flags);
-
-struct network_operation_tcp {
-    NETWORK_TCP_OPERATOR op;
-    io_svc_op_t io_svc_op;
-};
-
-const struct network_operation_tcp TCP_OPERATORS[NETWORK_TCP_OP_COUNT];
+void srb_operate(srb_t *srb);
 
 #endif /* _CHATS_NETWORK_COMMON_H_ */
