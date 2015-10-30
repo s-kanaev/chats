@@ -284,90 +284,122 @@ void otm_server_tcp_send_sync(otm_server_tcp_t *server,
                               const connection_t *connection,
                               buffer_t *buffer,
                               network_send_recv_cb_t cb, void *ctx) {
-    struct send_recv_tcp_buffer *sb;
+    srb_t *srb;
+    src_t *src;
 
     if (!server || !connection || !buffer ||
         !buffer_size(buffer) || connection->host != server)
         return;
 
-    sb = allocate(sizeof(struct send_recv_tcp_buffer));
-    assert(sb != NULL);
+    srb = allocate(sizeof(srb_t));
+    assert(srb != NULL);
 
-    sb->buffer = buffer;
-    sb->host = server;
-    sb->bytes_operated = 0;
-    sb->cb = cb;
-    sb->ctx = ctx;
-    sb->op = NETWORK_TCP_OP_SEND;
+    src = allocate(sizeof(src_t));
+    src->cb = cb;
+    src->ctx = ctx;
 
-    connection_send_recv_sync(connection, sb);
+    srb->buffer = buffer;
+    srb->bytes_operated = 0;
+    srb->cb = send_recv_cb;
+    srb->ctx = src;
+    srb->operation.type = EPT_TCP;
+    srb->operation.op = SRB_OP_SEND;
+    srb->iosvc = NULL;
+    srb->aux.src = NULL;
+    srb->aux.dst = &connection->ep_skt;
+
+    srb_operate(srb);
 }
 
 void otm_server_tcp_send_async(otm_server_tcp_t *server,
                                const connection_t *connection,
                                buffer_t *buffer,
                                network_send_recv_cb_t cb, void *ctx) {
-    struct send_recv_tcp_buffer *sb;
+    srb_t *srb;
+    src_t *src;
 
     if (!server || !connection || !buffer ||
         !buffer_size(buffer) || connection->host != server)
         return;
 
-    sb = allocate(sizeof(struct send_recv_tcp_buffer));
-    assert(sb != NULL);
+    srb = allocate(sizeof(srb_t));
+    assert(srb != NULL);
 
-    sb->buffer = buffer;
-    sb->host = server;
-    sb->bytes_operated = 0;
-    sb->cb = cb;
-    sb->ctx = ctx;
-    sb->op = NETWORK_TCP_OP_SEND;
+    src = allocate(sizeof(src_t));
+    src->cb = cb;
+    src->ctx = ctx;
 
-    connection_send_recv_async(connection, sb, server->master);
+    srb->buffer = buffer;
+    srb->bytes_operated = 0;
+    srb->cb = send_recv_cb;
+    srb->ctx = src;
+    srb->operation.type = EPT_TCP;
+    srb->operation.op = SRB_OP_SEND;
+    srb->iosvc = server->master;
+    srb->aux.src = NULL;
+    srb->aux.dst = &connection->ep_skt;
+
+    srb_operate(srb);
 }
 
 void otm_server_tcp_recv_sync(otm_server_tcp_t *server,
                               const connection_t *connection,
                               buffer_t *buffer,
                               network_send_recv_cb_t cb, void *ctx) {
-    struct send_recv_tcp_buffer *sb;
+    srb_t *srb;
+    src_t *src;
 
     if (!server || !connection || !buffer ||
         !buffer_size(buffer) || connection->host != server)
         return;
 
-    sb = allocate(sizeof(struct send_recv_tcp_buffer));
-    assert(sb != NULL);
+    srb = allocate(sizeof(srb_t));
+    assert(srb != NULL);
 
-    sb->buffer = buffer;
-    sb->host = server;
-    sb->bytes_operated = 0;
-    sb->cb = cb;
-    sb->ctx = ctx;
-    sb->op = NETWORK_TCP_OP_RECEIVE;
+    src = allocate(sizeof(src_t));
+    src->cb = cb;
+    src->ctx = ctx;
 
-    connection_send_recv_sync(connection, sb);
+    srb->buffer = buffer;
+    srb->bytes_operated = 0;
+    srb->cb = send_recv_cb;
+    srb->ctx = src;
+    srb->operation.type = EPT_TCP;
+    srb->operation.op = SRB_OP_RECV;
+    srb->iosvc = NULL;
+    srb->aux.src = NULL;
+    srb->aux.dst = &connection->ep_skt;
+
+    srb_operate(srb);
 }
 
 void otm_server_tcp_recv_async(otm_server_tcp_t *server,
                                const connection_t *connection,
                                buffer_t *buffer,
                                network_send_recv_cb_t cb, void *ctx) {
-    struct send_recv_tcp_buffer *sb;
+    srb_t *srb;
+    src_t *src;
 
     if (!server || !connection || !buffer ||
         !buffer_size(buffer) || connection->host != server)
         return;
 
-    sb = allocate(sizeof(struct send_recv_tcp_buffer));
-    assert(sb != NULL);
+    srb = allocate(sizeof(srb_t));
+    assert(srb != NULL);
 
-    sb->buffer = buffer;
-    sb->host = server;
-    sb->bytes_operated = 0;
-    sb->cb = cb;
-    sb->ctx = ctx;
-    sb->op = NETWORK_TCP_OP_RECEIVE;
+    src = allocate(sizeof(src_t));
+    src->cb = cb;
+    src->ctx = ctx;
 
-    connection_send_recv_async(connection, sb, server->master);
+    srb->buffer = buffer;
+    srb->bytes_operated = 0;
+    srb->cb = send_recv_cb;
+    srb->ctx = src;
+    srb->operation.type = EPT_TCP;
+    srb->operation.op = SRB_OP_RECV;
+    srb->iosvc = server->master;
+    srb->aux.src = NULL;
+    srb->aux.dst = &connection->ep_skt;
+
+    srb_operate(srb);
 }

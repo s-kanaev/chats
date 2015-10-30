@@ -44,6 +44,12 @@ typedef enum srb_operation_enum {
     SRB_OP_NONE = SRB_OP_MAX
 } srb_operation_t;
 
+struct send_recv_ctx {
+    network_send_recv_cb_t cb;
+    void *ctx;
+};
+typedef struct send_recv_ctx src_t;
+
 // typedef enum network_operation_tcp_enum {
 //     NETWORK_TCP_OP_RECEIVE = 0,
 //     NETWORK_TCP_OP_SEND = 1,
@@ -71,14 +77,6 @@ struct send_recv_buffer {
     struct {
         endpoint_socket_t *src;
         endpoint_socket_t *dst;
-//         union {
-//             struct {
-//                 endpoint_t *dst;
-//             } tcp;
-//             struct {
-//                 endpoint_t *dst;
-//             } udp;
-//         } dst;
     } aux;
 
     io_service_t *iosvc;
@@ -90,5 +88,5 @@ struct send_recv_buffer {
 };
 
 void srb_operate(srb_t *srb);
-
+void send_recv_cb(srb_t *srb, endpoint_t ep, int err, void *ctx);
 #endif /* _CHATS_NETWORK_COMMON_H_ */

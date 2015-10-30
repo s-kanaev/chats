@@ -31,7 +31,6 @@ void tcp_send_recv_async_tpl(int fd, io_svc_op_t op_, void *ctx) {
     srb_t *srb = ctx;
     buffer_t *buffer = srb->buffer;
     size_t bytes_op = srb->bytes_operated;
-    ssize_t bytes_op_cur;
     srb_operation_t op = srb->operation.op;
     io_service_t *iosvc = srb->iosvc;
     TCP_OPERATOR oper = TCP_OPERATIONS[op].oper;
@@ -129,8 +128,8 @@ static tcp_send_recv_async(srb_t *srb) {
 
 static
 void operate_tcp(srb_t *srb) {
-    if (srb->iosvc) tcp_send_recv_sync(srb);
-    else tcp_send_recv_async(srb);
+    if (srb->iosvc) tcp_send_recv_async(srb);
+    else tcp_send_recv_sync(srb);
 }
 
 static
@@ -155,4 +154,12 @@ void srb_operate(srb_t *srb) {
             operate_udp(srb);
             break;
     }
+}
+
+void send_recv_cb(srb_t *srb, endpoint_t ep, int err, void *ctx) {
+    src_t *src = ctx;
+    if (src->cb)
+        (*src->cb)(err, srb->bytes_operated, srb->buffer, src->ctx);
+
+    deallocate(ctx);
 }

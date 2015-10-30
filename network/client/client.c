@@ -27,7 +27,7 @@ struct client_tcp {
     char *local_addr;
     char *local_port;
     endpoint_socket_t local;
-    endpoint_t remote;
+    endpoint_socket_t remote;
 };
 
 struct client_udp {
@@ -152,7 +152,7 @@ static
 void client_tcp_connector(int fd, io_svc_op_t op, void *ctx) {
     struct connector *connector = ctx;
     client_tcp_t *client = connector->host;
-    endpoint_t *ep = &client->remote;
+    endpoint_socket_t *ep = &client->remote;
     int ret;
     int err;
     socklen_t len = sizeof(err);
@@ -168,120 +168,9 @@ void client_tcp_connector(int fd, io_svc_op_t op, void *ctx) {
     }
 
     if (connector->connection_cb)
-        (*connector->connection_cb)(&client->remote, err, connector->connection_ctx);
+        (*connector->connection_cb)(&client->remote.ep, err, connector->connection_ctx);
 
     deallocate(connector);
-}
-
-static
-void client_send_recv_sync(struct send_recv_tcp_buffer *srb) {
-    client_tcp_t *client;
-    buffer_t *buffer;
-    size_t bytes_op;
-    ssize_t bytes_sent_cur;
-    network_tcp_op_t op;
-    NETWORK_TCP_OPERATOR oper;
-
-    assert(srb != NULL);
-
-    client = srb->host;
-    buffer = srb->buffer;
-    op = srb->op;
-    oper = TCP_OPERATORS[op].op;
-
-    assert(client != NULL);
-    assert(buffer != NULL);
-
-    bytes_op = srb->bytes_operated;
-
-    if (!client->connected) return;
-
-    pthread_mutex_lock(&client->mutex);
-
-    while (bytes_op < buffer_size(buffer)) {
-        errno = 0;
-        bytes_sent_cur = (*oper)(client->local.skt,
-                                 buffer_data(buffer) + bytes_op,
-                                 buffer_size(buffer) - bytes_op,
-                                 MSG_NOSIGNAL);
-        if (bytes_sent_cur < 0) break;
-
-        bytes_op += bytes_sent_cur;
-    }
-
-    srb->bytes_operated = bytes_op;
-
-    (*srb->cb)(errno, bytes_op, buffer, srb->ctx);
-
-    pthread_mutex_unlock(&client->mutex);
-
-    deallocate(srb);
-}
-
-static
-void client_send_recv_async(int fd, io_svc_op_t op_, void *ctx) {
-    struct send_recv_tcp_buffer *srb = ctx;
-    client_tcp_t *client;
-    buffer_t *buffer;
-    size_t bytes_op;
-    ssize_t bytes_op_cur;
-    network_tcp_op_t op;
-    NETWORK_TCP_OPERATOR oper;
-    io_svc_op_t io_svc_op;
-
-    assert(srb != NULL);
-
-    client = srb->host;
-    buffer = srb->buffer;
-    op = srb->op;
-    oper = TCP_OPERATORS[op].op;
-    io_svc_op = TCP_OPERATORS[op].io_svc_op;
-
-    assert(client != NULL);
-    assert(buffer != NULL);
-
-    bytes_op = srb->bytes_operated;
-
-    if (!client->connected) return;
-
-    pthread_mutex_lock(&client->mutex);
-
-    errno = 0;
-    bytes_op_cur = (*oper)(client->local.skt,
-                           buffer_data(buffer) + bytes_op,
-                           buffer_size(buffer) - bytes_op,
-                           MSG_DONTWAIT | MSG_NOSIGNAL);
-
-    if (bytes_op_cur < 0) {
-        if (errno == EAGAIN || errno == EWOULDBLOCK)
-            io_service_post_job(client->master,
-                                client->local.skt,
-                                io_svc_op,
-                                true,
-                                client_send_recv_async,
-                                srb);
-        else {
-            (*srb->cb)(errno, bytes_op, buffer, srb->ctx);
-            deallocate(srb);
-        }
-    }
-    else {
-        bytes_op += bytes_op_cur;
-        srb->bytes_operated = bytes_op;
-        if (bytes_op < buffer_size(buffer))
-            io_service_post_job(client->master,
-                                client->local.skt,
-                                io_svc_op,
-                                true,
-                                client_send_recv_async,
-                                srb);
-        else {
-            (*srb->cb)(errno, bytes_op, buffer, srb->ctx);
-            deallocate(srb);
-        }
-    }
-
-    pthread_mutex_unlock(&client->mutex);
 }
 
 /********************** TCP client **********************************/
@@ -304,8 +193,8 @@ client_tcp_t *client_tcp_init(io_service_t *svc,
     client->master = svc;
     client->reuse_addr = reuse_addr;
     client->local_addr = client->local_port = NULL;
-    client->remote.ep_type = client->local.ep.ep_type = EPT_NONE;
-    client->remote.ep_class = client->local.ep.ep_class = EPC_NONE;
+    client->remote.ep.ep_type = client->local.ep.ep_type = EPT_NONE;
+    client->remote.ep.ep_class = client->local.ep.ep_class = EPC_NONE;
     client->local.skt = -1;
 
     if (addr) client->local_addr = strdup(addr);
@@ -410,34 +299,35 @@ void client_tcp_connect_sync(client_tcp_t *client,
         return;
     }
 
-    client->remote.ep_type = EPT_TCP;
-    memcpy(&client->remote.addr, cur_addr->ai_addr, cur_addr->ai_addrlen);
+    client->remote.skt = client->local.skt;
+    client->remote.ep.ep_type = EPT_TCP;
+    memcpy(&client->remote.ep.addr, cur_addr->ai_addr, cur_addr->ai_addrlen);
 
     switch (cur_addr->ai_family) {
     case AF_INET:
-        client->remote.ep_class = EPC_IP4;
-        client->remote.ep.ip4.port =
+        client->remote.ep.ep_class = EPC_IP4;
+        client->remote.ep.ep.ip4.port =
             ntohs(((struct sockaddr_in *)cur_addr->ai_addr)->sin_port);
         local_addr =
             ntohl(((struct sockaddr_in *)cur_addr->ai_addr)->sin_addr.s_addr);
-        client->remote.ep.ip4.addr[0] = local_addr >> 0x18;
-        client->remote.ep.ip4.addr[1] = (local_addr >> 0x10) & 0xff;
-        client->remote.ep.ip4.addr[2] = (local_addr >> 0x08) & 0xff;
-        client->remote.ep.ip4.addr[3] = local_addr & 0xff;
+        client->remote.ep.ep.ip4.addr[0] = local_addr >> 0x18;
+        client->remote.ep.ep.ip4.addr[1] = (local_addr >> 0x10) & 0xff;
+        client->remote.ep.ep.ip4.addr[2] = (local_addr >> 0x08) & 0xff;
+        client->remote.ep.ep.ip4.addr[3] = local_addr & 0xff;
         break;
 
     case AF_INET6:
-        client->remote.ep_class = EPC_IP6;
-        client->remote.ep.ip6.port =
+        client->remote.ep.ep_class = EPC_IP6;
+        client->remote.ep.ep.ip6.port =
             ntohs(((struct sockaddr_in6 *)cur_addr->ai_addr)->sin6_port);
-        memcpy(&client->remote.ep.ip6.addr,
+        memcpy(&client->remote.ep.ep.ip6.addr,
                &((struct sockaddr_in6 *)cur_addr->ai_addr)->sin6_addr,
-               sizeof(client->remote.ep.ip6.addr));
+               sizeof(client->remote.ep.ep.ip6.addr));
         break;
     }
 
     client->connected = true;
-    ep = &client->remote;
+    ep = &client->remote.ep;
 
     if (errno) {
         client_tcp_disconnect(client);
@@ -501,39 +391,38 @@ void client_tcp_connect_async(client_tcp_t *client,
     for (cur_addr = addr_info; cur_addr != NULL; cur_addr = cur_addr->ai_next) {
         ret = connect(client->local.skt, cur_addr->ai_addr, cur_addr->ai_addrlen);
         if (ret == 0 || errno == EINPROGRESS) {
-            memcpy(&client->remote.addr, cur_addr->ai_addr, cur_addr->ai_addrlen);
+            memcpy(&client->remote.ep.addr, cur_addr->ai_addr, cur_addr->ai_addrlen);
             switch (cur_addr->ai_addrlen) {
                 case sizeof(struct sockaddr_in):
-                    client->remote.ep_class = EPC_IP4;
-                    client->remote.ep.ip4.port =
+                    client->remote.ep.ep_class = EPC_IP4;
+                    client->remote.ep.ep.ip4.port =
                         ntohs(((struct sockaddr_in *)cur_addr->ai_addr)->sin_port);
                     local_addr =
                         ntohl(((struct sockaddr_in *)cur_addr->ai_addr)->sin_addr.s_addr);
-                    client->remote.ep.ip4.addr[0] = local_addr >> 0x18;
-                    client->remote.ep.ip4.addr[1] = (local_addr >> 0x10) & 0xff;
-                    client->remote.ep.ip4.addr[2] = (local_addr >> 0x08) & 0xff;
-                    client->remote.ep.ip4.addr[3] = local_addr & 0xff;
+                    client->remote.ep.ep.ip4.addr[0] = local_addr >> 0x18;
+                    client->remote.ep.ep.ip4.addr[1] = (local_addr >> 0x10) & 0xff;
+                    client->remote.ep.ep.ip4.addr[2] = (local_addr >> 0x08) & 0xff;
+                    client->remote.ep.ep.ip4.addr[3] = local_addr & 0xff;
                     break;
                 case sizeof(struct sockaddr_in6):
-                    client->remote.ep_class = EPC_IP6;
-                    client->remote.ep.ip6.port =
+                    client->remote.ep.ep_class = EPC_IP6;
+                    client->remote.ep.ep.ip6.port =
                         ntohs(((struct sockaddr_in6 *)cur_addr->ai_addr)->sin6_port);
-                    memcpy(&client->remote.ep.ip6.addr,
+                    memcpy(&client->remote.ep.ep.ip6.addr,
                            &((struct sockaddr_in6 *)cur_addr->ai_addr)->sin6_addr,
-                           sizeof(client->remote.ep.ip6.addr));
+                           sizeof(client->remote.ep.ep.ip6.addr));
                     break;
                 default:
                     assert(0);
                     break;
             }
 
-            io_service_post_job(
-                client->master,
-                client->local.skt,
-                IO_SVC_OP_WRITE,
-                true,
-                client_tcp_connector,
-                connector);
+            io_service_post_job(client->master,
+                                client->local.skt,
+                                IO_SVC_OP_WRITE,
+                                true,
+                                client_tcp_connector,
+                                connector);
             break;
         }
     }
@@ -548,76 +437,222 @@ void client_tcp_connect_async(client_tcp_t *client,
 
 void client_tcp_recv_sync(client_tcp_t *client, buffer_t *buffer,
                           network_send_recv_cb_t cb, void *ctx) {
-    struct send_recv_tcp_buffer *rb = allocate(sizeof(struct send_recv_tcp_buffer));
+    srb_t *srb;
+    src_t *src;
 
-    assert(rb != NULL);
+    if (!client || !buffer || !buffer_size(buffer))
+        return;
 
-    rb->buffer = buffer;
-    rb->host = client;
-    rb->bytes_operated = 0;
-    rb->cb = cb;
-    rb->ctx = ctx;
-    rb->op = NETWORK_TCP_OP_RECEIVE;
+    srb = allocate(sizeof(srb_t));
+    assert(srb != NULL);
 
-    client_send_recv_sync(rb);
+    src = allocate(sizeof(src_t));
+    src->cb = cb;
+    src->ctx = ctx;
+
+    srb->buffer = buffer;
+    srb->bytes_operated = 0;
+    srb->cb = send_recv_cb;
+    srb->ctx = src;
+    srb->operation.type = EPT_TCP;
+    srb->operation.op = SRB_OP_RECV;
+    srb->iosvc = NULL;
+    srb->aux.src = NULL;
+    srb->aux.dst = &client->remote;
+
+    srb_operate(srb);
 }
 
 void client_tcp_recv_async(client_tcp_t *client, buffer_t *buffer,
                            network_send_recv_cb_t cb, void *ctx) {
-    struct send_recv_tcp_buffer *rb = allocate(sizeof(struct send_recv_tcp_buffer));
+    srb_t *srb;
+    src_t *src;
 
-    assert(rb != NULL);
+    if (!client || !buffer || !buffer_size(buffer))
+        return;
 
-    rb->buffer = buffer;
-    rb->host = client;
-    rb->bytes_operated = 0;
-    rb->cb = cb;
-    rb->ctx = ctx;
-    rb->op = NETWORK_TCP_OP_RECEIVE;
+    srb = allocate(sizeof(srb_t));
+    assert(srb != NULL);
 
-    io_service_post_job(client->master,
-                        client->local.skt,
-                        IO_SVC_OP_READ,
-                        true,
-                        client_send_recv_async,
-                        rb);
+    src = allocate(sizeof(src_t));
+    src->cb = cb;
+    src->ctx = ctx;
+
+    srb->buffer = buffer;
+    srb->bytes_operated = 0;
+    srb->cb = send_recv_cb;
+    srb->ctx = src;
+    srb->operation.type = EPT_TCP;
+    srb->operation.op = SRB_OP_RECV;
+    srb->iosvc = client->master;
+    srb->aux.src = NULL;
+    srb->aux.dst = &client->remote;
+
+    srb_operate(srb);
 }
 
 void client_tcp_send_sync(client_tcp_t *client, buffer_t *buffer,
                           network_send_recv_cb_t cb, void *ctx) {
-    struct send_recv_tcp_buffer *sb = allocate(sizeof(struct send_recv_tcp_buffer));
+    srb_t *srb;
+    src_t *src;
 
-    assert(sb != NULL);
+    if (!client || !buffer || !buffer_size(buffer))
+        return;
 
-    sb->buffer = buffer;
-    sb->host = client;
-    sb->bytes_operated = 0;
-    sb->cb = cb;
-    sb->ctx = ctx;
-    sb->op = NETWORK_TCP_OP_SEND;
+    srb = allocate(sizeof(srb_t));
+    assert(srb != NULL);
 
-    client_send_recv_sync(sb);
+    src = allocate(sizeof(src_t));
+    src->cb = cb;
+    src->ctx = ctx;
+
+    srb->buffer = buffer;
+    srb->bytes_operated = 0;
+    srb->cb = send_recv_cb;
+    srb->ctx = src;
+    srb->operation.type = EPT_TCP;
+    srb->operation.op = SRB_OP_SEND;
+    srb->iosvc = NULL;
+    srb->aux.src = NULL;
+    srb->aux.dst = &client->remote;
+
+    srb_operate(srb);
 }
 
 void client_tcp_send_async(client_tcp_t *client, buffer_t *buffer,
                            network_send_recv_cb_t cb, void *ctx) {
-    struct send_recv_tcp_buffer *sb = allocate(sizeof(struct send_recv_tcp_buffer));
+    srb_t *srb;
+    src_t *src;
 
-    assert(sb != NULL);
+    if (!client || !buffer || !buffer_size(buffer))
+        return;
 
-    sb->buffer = buffer;
-    sb->host = client;
-    sb->bytes_operated = 0;
-    sb->cb = cb;
-    sb->ctx = ctx;
-    sb->op = NETWORK_TCP_OP_SEND;
+    srb = allocate(sizeof(srb_t));
+    assert(srb != NULL);
 
-    io_service_post_job(client->master,
-                        client->local.skt,
-                        IO_SVC_OP_WRITE,
-                        true,
-                        client_send_recv_async,
-                        sb);
+    src = allocate(sizeof(src_t));
+    src->cb = cb;
+    src->ctx = ctx;
+
+    srb->buffer = buffer;
+    srb->bytes_operated = 0;
+    srb->cb = send_recv_cb;
+    srb->ctx = src;
+    srb->operation.type = EPT_TCP;
+    srb->operation.op = SRB_OP_SEND;
+    srb->iosvc = client->master;
+    srb->aux.src = NULL;
+    srb->aux.dst = &client->remote;
+
+    srb_operate(srb);
 }
 
 /********************** UDP client **********************************/
+client_udp_t *client_udp_init(io_service_t *svc,
+                              const char *addr, const char *port,
+                              int reuse_addr) {
+    client_udp_t *client = NULL;
+    int socket_family, socket_type = SOCK_STREAM | SOCK_CLOEXEC;
+
+    if (svc == NULL) goto fail;
+
+    client = allocate(sizeof(client_udp_t));
+
+    if (!client) goto fail;
+
+    pthread_mutexattr_init(&client->mtx_attr);
+    pthread_mutexattr_settype(&client->mtx_attr, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutex_init(&client->mutex, &client->mtx_attr);
+
+    client->master = svc;
+    client->reuse_addr = reuse_addr;
+    client->local_addr = client->local_port = NULL;
+    client->local.skt = -1;
+
+    if (addr) client->local_addr = strdup(addr);
+    if (port) client->local_port = strdup(port);
+
+    if (!client_init_socket(EPT_UDP, EPC_NONE,
+                            client->local_addr, client->local_port,
+                            client->reuse_addr, &client->local)) goto fail_socket;
+
+    return client;
+
+fail_socket:
+    if (client && client->local.skt >= 0) {
+        shutdown(client->local.skt, SHUT_RDWR);
+        close(client->local.skt);
+    }
+
+fail:
+    if (client) {
+        if (client->local_addr) free(client->local_addr);
+        if (client->local_port) free(client->local_port);
+        deallocate(client);
+    }
+    return NULL;
+}
+
+void client_udp_deinit(client_udp_t *client) {
+    if (!client) return;
+
+    shutdown(client->local.skt, SHUT_RDWR);
+    close(client->local.skt);
+
+    pthread_mutex_destroy(&client->mutex);
+    pthread_mutexattr_destroy(&client->mtx_attr);
+
+    if (client->local_addr) free(client->local_addr);
+    if (client->local_port) free(client->local_port);
+    deallocate(client);
+}
+
+void client_udp_local_ep(client_udp_t *client, endpoint_t **ep) {
+    if (ep == NULL || client == NULL) return;
+    if (*ep == NULL) *ep = allocate(sizeof(endpoint_t));
+
+    memcpy(*ep, &client->local.ep, sizeof(client->local.ep));
+}
+
+void client_udp_recv_sync(client_udp_t *client,
+                          buffer_t *buffer,
+                          const char *addr, const char *port,
+                          network_send_recv_cb_t cb, void *ctx) {
+//     struct send_recv_buffer *rb = allocate(sizeof(struct send_recv_buffer));
+//
+//     assert(rb != NULL);
+//
+//     rb->buffer = buffer;
+//     rb->host = client;
+//     rb->bytes_operated = 0;
+//     rb->cb = cb;
+//     rb->ctx = ctx;
+//     rb->op = NETWORK_TCP_OP_RECEIVE;
+//
+//     _udp_send_recv_sync(rb);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

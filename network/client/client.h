@@ -40,12 +40,16 @@ client_udp_t *client_udp_init(io_service_t *svc,
 void client_udp_deinit(client_udp_t *client);
 void client_udp_local_ep(client_udp_t *client, endpoint_t **ep);
 void client_udp_send_sync(client_udp_t *client, buffer_t *buffer,
+                          const char *addr, const char *port,
                           network_send_recv_cb_t cb, void *ctx);
 void client_udp_send_async(client_udp_t *client, buffer_t *buffer,
+                           const char *addr, const char *port,
                            network_send_recv_cb_t cb, void *ctx);
 void client_udp_recv_sync(client_udp_t *client, buffer_t *buffer,
+                          const char *addr, const char *port,
                           network_send_recv_cb_t cb, void *ctx);
 void client_udp_recv_async(client_udp_t *client, buffer_t *buffer,
+                           const char *addr, const char *port,
                            network_send_recv_cb_t cb, void *ctx);
 
 #endif /* _CHATS_CLIENT_H_ */

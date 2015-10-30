@@ -279,83 +279,115 @@ void oto_server_tcp_remote_ep(oto_server_tcp_t *server, endpoint_socket_t *ep) {
 void oto_server_tcp_send_sync(oto_server_tcp_t *server,
                               buffer_t *buffer,
                               network_send_recv_cb_t cb, void *ctx) {
-    struct send_recv_tcp_buffer *sb;
+    srb_t *srb;
+    src_t *src;
 
     if (!server || !buffer || !buffer_size(buffer))
         return;
 
-    sb = allocate(sizeof(struct send_recv_tcp_buffer));
-    assert(sb != NULL);
+    srb = allocate(sizeof(srb_t));
+    assert(srb != NULL);
 
-    sb->buffer = buffer;
-    sb->host = server;
-    sb->bytes_operated = 0;
-    sb->cb = cb;
-    sb->ctx = ctx;
-    sb->op = NETWORK_TCP_OP_SEND;
+    src = allocate(sizeof(src_t));
+    src->cb = cb;
+    src->ctx = ctx;
 
-    connection_send_recv_sync(&server->remote, sb);
+    srb->buffer = buffer;
+    srb->bytes_operated = 0;
+    srb->cb = send_recv_cb;
+    srb->ctx = src;
+    srb->operation.type = EPT_TCP;
+    srb->operation.op = SRB_OP_SEND;
+    srb->iosvc = NULL;
+    srb->aux.src = NULL;
+    srb->aux.dst = &server->remote.ep_skt;
+
+    srb_operate(srb);
 }
 
 void oto_server_tcp_send_async(oto_server_tcp_t *server,
                                buffer_t *buffer,
                                network_send_recv_cb_t cb, void *ctx) {
-    struct send_recv_tcp_buffer *sb;
+    srb_t *srb;
+    src_t *src;
 
     if (!server || !buffer || !buffer_size(buffer))
         return;
 
-    sb = allocate(sizeof(struct send_recv_tcp_buffer));
-    assert(sb != NULL);
+    srb = allocate(sizeof(srb_t));
+    assert(srb != NULL);
 
-    sb->buffer = buffer;
-    sb->host = server;
-    sb->bytes_operated = 0;
-    sb->cb = cb;
-    sb->ctx = ctx;
-    sb->op = NETWORK_TCP_OP_SEND;
+    src = allocate(sizeof(src_t));
+    src->cb = cb;
+    src->ctx = ctx;
 
-    connection_send_recv_async(&server->remote, sb, server->master);
+    srb->buffer = buffer;
+    srb->bytes_operated = 0;
+    srb->cb = send_recv_cb;
+    srb->ctx = src;
+    srb->operation.type = EPT_TCP;
+    srb->operation.op = SRB_OP_SEND;
+    srb->iosvc = server->master;
+    srb->aux.src = NULL;
+    srb->aux.dst = &server->remote.ep_skt;
+
+    srb_operate(srb);
 }
 
 void oto_server_tcp_recv_sync(oto_server_tcp_t *server,
                               buffer_t *buffer,
                               network_send_recv_cb_t cb, void *ctx) {
-    struct send_recv_tcp_buffer *rb;
+    srb_t *srb;
+    src_t *src;
 
     if (!server || !buffer || !buffer_size(buffer))
         return;
 
-    rb = allocate(sizeof(struct send_recv_tcp_buffer));
-    assert(rb != NULL);
+    srb = allocate(sizeof(srb_t));
+    assert(srb != NULL);
 
-    rb->buffer = buffer;
-    rb->host = server;
-    rb->bytes_operated = 0;
-    rb->cb = cb;
-    rb->ctx = ctx;
-    rb->op = NETWORK_TCP_OP_RECEIVE;
+    src = allocate(sizeof(src_t));
+    src->cb = cb;
+    src->ctx = ctx;
 
-    connection_send_recv_sync(&server->remote, rb);
+    srb->buffer = buffer;
+    srb->bytes_operated = 0;
+    srb->cb = send_recv_cb;
+    srb->ctx = src;
+    srb->operation.type = EPT_TCP;
+    srb->operation.op = SRB_OP_RECV;
+    srb->iosvc = NULL;
+    srb->aux.src = NULL;
+    srb->aux.dst = &server->remote.ep_skt;
+
+    srb_operate(srb);
 }
 
 void oto_server_tcp_recv_async(oto_server_tcp_t *server,
                                buffer_t *buffer,
                                network_send_recv_cb_t cb, void *ctx) {
-    struct send_recv_tcp_buffer *rb;
+    srb_t *srb;
+    src_t *src;
 
     if (!server || !buffer || !buffer_size(buffer))
         return;
 
-    rb = allocate(sizeof(struct send_recv_tcp_buffer));
-    assert(rb != NULL);
+    srb = allocate(sizeof(srb_t));
+    assert(srb != NULL);
 
-    rb->buffer = buffer;
-    rb->host = server;
-    rb->bytes_operated = 0;
-    rb->cb = cb;
-    rb->ctx = ctx;
-    rb->op = NETWORK_TCP_OP_RECEIVE;
+    src = allocate(sizeof(src_t));
+    src->cb = cb;
+    src->ctx = ctx;
 
-    connection_send_recv_async(&server->remote, rb, server->master);
+    srb->buffer = buffer;
+    srb->bytes_operated = 0;
+    srb->cb = send_recv_cb;
+    srb->ctx = src;
+    srb->operation.type = EPT_TCP;
+    srb->operation.op = SRB_OP_RECV;
+    srb->iosvc = server->master;
+    srb->aux.src = NULL;
+    srb->aux.dst = &server->remote.ep_skt;
+
+    srb_operate(srb);
 }
