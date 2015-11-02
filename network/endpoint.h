@@ -40,11 +40,6 @@ struct ip6_endpoint {
     uint16_t port;
 };
 
-typedef union ip_addr {
-    struct sockaddr_in ip4;
-    struct sockaddr_in6 ip6;
-} ip_addr_t;
-
 struct endpoint {
     endpoint_class_t ep_class;
     endpoint_type_t ep_type;
@@ -52,7 +47,7 @@ struct endpoint {
         ip4_endpoint_t ip4;
         ip6_endpoint_t ip6;
     } ep;
-    ip_addr_t addr;
+    struct sockaddr_storage addr;
 };
 
 struct endpoint_socket {

@@ -8,6 +8,7 @@
 # include <stddef.h>
 # include <stdbool.h>
 # include <sys/types.h>
+# include <sys/socket.h>
 
 struct connection;
 typedef struct connection connection_t;
@@ -31,7 +32,8 @@ typedef void (*tcp_client_connection_cb_t)(const endpoint_t *ep, int err,
  * \param [in] buffer buffer sent
  * \param [in] ctx user context
  */
-typedef void (*network_send_recv_cb_t)(int err,
+typedef void (*network_send_recv_cb_t)(endpoint_t ep,
+                                       int err,
                                        size_t bytes, buffer_t *buffer,
                                        void *ctx);
 
@@ -50,12 +52,6 @@ struct send_recv_ctx {
 };
 typedef struct send_recv_ctx src_t;
 
-// typedef enum network_operation_tcp_enum {
-//     NETWORK_TCP_OP_RECEIVE = 0,
-//     NETWORK_TCP_OP_SEND = 1,
-//     NETWORK_TCP_OP_COUNT
-// } network_tcp_op_t;
-
 struct connection_acceptor {
     void *host;
     tcp_connection_cb_t connection_cb;
@@ -69,22 +65,27 @@ struct connector {
 };
 
 struct send_recv_buffer {
+    /* user provided */
     struct {
         endpoint_type_t type;
         srb_operation_t op;
     } operation;
 
     struct {
-        endpoint_socket_t *src;
-        endpoint_socket_t *dst;
+        endpoint_socket_t src;
+        endpoint_socket_t dst;
     } aux;
 
     io_service_t *iosvc;
-    buffer_t *buffer;
-    size_t bytes_operated;
+    buffer_t **buffer;
+    size_t bytes_operated;                                  ///< internaly initialized
 
     srb_cb_t cb;
     void *ctx;
+
+    /* internal */
+    struct msghdr mhdr;
+    struct iovec vec;
 };
 
 void srb_operate(srb_t *srb);
