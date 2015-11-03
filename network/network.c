@@ -34,6 +34,45 @@ static const struct NET_OPERATION NET_OPERATIONS[] = {
     }
 };
 
+typedef ssize_t (*OPERATOR)(srb_t *srb);
+#if 0
+static OPERATOR tcp_send_recv_async;
+static OPERATOR tcp_send_recv_sync;
+static OPERATOR udp_send_async;
+static OPERATOR udp_send_sync;
+static OPERATOR udp_recv_async;
+static OPERATOR udp_recv_sync;
+#else
+static void tcp_send_recv_async(srb_t *srb);
+static void tcp_send_recv_sync(srb_t *srb);
+static void udp_send_async(srb_t *srb);
+static void udp_send_sync(srb_t *srb);
+static void udp_recv_async(srb_t *srb);
+static void udp_recv_sync(srb_t *srb);
+#endif
+
+#define OP_SYNC 0
+#define OP_ASYNC 1
+#define OPERATOR_IDX(proto, op, sync) \
+    (\
+     (((proto) & 0x01) << 0x02) | \
+     (((op) & 0x01) << 0x01) | \
+     (((sync) & 0x01)) \
+    )
+
+static const OPERATOR *OPERATORS[] = {
+    [OPERATOR_IDX(EPT_TCP, SRB_OP_SEND, OP_SYNC)] = tcp_send_recv_sync,
+    [OPERATOR_IDX(EPT_TCP, SRB_OP_SEND, OP_ASYNC)] = tcp_send_recv_async,
+    [OPERATOR_IDX(EPT_TCP, SRB_OP_RECV, OP_SYNC)] = tcp_send_recv_sync,
+    [OPERATOR_IDX(EPT_TCP, SRB_OP_RECV, OP_ASYNC)] = tcp_send_recv_async,
+
+    [OPERATOR_IDX(EPT_UDP, SRB_OP_SEND, OP_SYNC)] = udp_send_sync,
+    [OPERATOR_IDX(EPT_UDP, SRB_OP_SEND, OP_ASYNC)] = udp_send_async,
+    [OPERATOR_IDX(EPT_UDP, SRB_OP_RECV, OP_SYNC)] = udp_recv_sync,
+    [OPERATOR_IDX(EPT_UDP, SRB_OP_RECV, OP_ASYNC)] = udp_recv_async,
+};
+
+/***************** functions *********************/
 static
 void tcp_send_recv_async_tpl(int fd, io_svc_op_t op_, void *ctx) {
     srb_t *srb = ctx;
@@ -46,15 +85,16 @@ void tcp_send_recv_async_tpl(int fd, io_svc_op_t op_, void *ctx) {
     ssize_t bytes_op_cur;
 
     errno = 0;
-    bytes_op_cur = (*oper)(srb->aux.dst->skt,
-                           buffer_data(buffer) + bytes_op,
-                           buffer_size(buffer) - bytes_op,
-                           MSG_DONTWAIT | MSG_NOSIGNAL);
+    srb->vec.iov_base = buffer_data(buffer) + bytes_op;
+    srb->vec.iov_len = buffer_size(buffer) - bytes_op;
+    bytes_op_cur = (*oper)(srb->aux.dst.skt,
+                           &srb->mhdr,
+                           MSG_NOSIGNAL | MSG_DONTWAIT);
 
     if (bytes_op_cur < 0) {
         if (errno == EAGAIN || errno == EWOULDBLOCK)
             io_service_post_job(iosvc,
-                                srb->aux.dst->skt,
+                                srb->aux.dst.skt,
                                 io_svc_op,
                                 true,
                                 tcp_send_recv_async_tpl,
@@ -69,7 +109,7 @@ void tcp_send_recv_async_tpl(int fd, io_svc_op_t op_, void *ctx) {
         srb->bytes_operated = bytes_op;
         if (bytes_op < buffer_size(buffer))
             io_service_post_job(iosvc,
-                                srb->aux.dst->skt,
+                                srb->aux.dst.skt,
                                 io_svc_op,
                                 true,
                                 tcp_send_recv_async_tpl,
@@ -138,9 +178,8 @@ void tcp_send_recv_sync(srb_t *srb) {
     TCP_OPERATOR oper;
 
     assert(srb &&
-           srb->aux.dst &&
-           srb->aux.dst->skt >= 0 &&
-           srb->aux.dst->ep.ep_type == EPT_TCP);
+           srb->aux.dst.skt >= 0 &&
+           srb->aux.dst.ep.ep_type == EPT_TCP);
 
     buffer = srb->buffer;
     op = srb->operation.op;
@@ -148,33 +187,60 @@ void tcp_send_recv_sync(srb_t *srb) {
 
     assert(buffer != NULL);
 
-    bytes_op = srb->bytes_operated;
+    srb->mhdr.msg_iovlen = 1;
+    srb->mhdr.msg_iov = &srb->vec;
+    srb->mhdr.msg_control = NULL;
+    srb->mhdr.msg_controllen = 0;
+    srb->mhdr.msg_flags = 0;
+    srb->mhdr.msg_name = NULL;
+    srb->mhdr.msg_namelen = 0;
+
+    srb->vec.iov_base = buffer_data(buffer);
+    srb->vec.iov_len = buffer_size(buffer);
+
+    bytes_op = srb->bytes_operated = 0;
 
     while (bytes_op < buffer_size(buffer)) {
         errno = 0;
-        bytes_op_cur = (*oper)(srb->aux.dst->skt,
-                               buffer_data(buffer) + bytes_op,
-                               buffer_size(buffer) - bytes_op,
+        bytes_op_cur = (*oper)(srb->aux.dst.skt,
+                               &srb->mhdr,
                                MSG_NOSIGNAL);
         if (bytes_op_cur < 0) break;
-
         bytes_op += bytes_op_cur;
     }
 
     srb->bytes_operated = bytes_op;
 
     if (srb->cb)
-        (*srb->cb)(srb, srb->aux.dst->ep, errno, srb->ctx);
+        (*srb->cb)(srb, srb->aux.dst.ep, errno, srb->ctx);
 
     deallocate(srb);
 }
 
 static
 void tcp_send_recv_async(srb_t *srb) {
+    buffer_t *buffer;
     assert(srb &&
-           srb->aux.dst &&
-           srb->aux.dst->skt >= 0 &&
-           srb->aux.dst->ep.ep_type == EPT_TCP);
+           srb->aux.dst.skt >= 0 &&
+           srb->aux.dst.ep.ep_type == EPT_TCP);
+
+    buffer = srb->buffer;
+
+    assert(buffer != NULL);
+
+    srb->mhdr.msg_iovlen = 1;
+    srb->mhdr.msg_iov = &srb->vec;
+    srb->mhdr.msg_control = NULL;
+    srb->mhdr.msg_controllen = 0;
+    srb->mhdr.msg_flags = 0;
+    srb->mhdr.msg_name = NULL;
+    srb->mhdr.msg_namelen = 0;
+
+    srb->vec.iov_base = buffer_data(buffer);
+    srb->vec.iov_len = buffer_size(buffer);
+
+    srb->bytes_operated = 0;
+
     io_service_post_job(srb->iosvc,
                         srb->aux.dst.skt,
                         NET_OPERATIONS[srb->operation.op].iosvc_op,
@@ -278,23 +344,12 @@ void udp_recv_sync(srb_t *srb) {
     deallocate(srb);
 }
 
-static
-void operate_tcp(srb_t *srb) {
-    if (srb->iosvc) tcp_send_recv_async(srb);
-    else tcp_send_recv_sync(srb);
-}
-
-static
-void operate_udp(srb_t *srb) {
-    switch (srb->operation.op) {
-        case SRB_OP_SEND:
-            break;
-        case SRB_OP_RECV:
-            break;
-    }
-}
-
 /*****************************************/
+
+static
+void translate_ep(endpoint_t *ep) {
+    /* TODO addr -> ep */
+}
 
 static
 void srb_recv_async(srb_t *srb) {
@@ -325,8 +380,8 @@ void srb_recv_sync(srb_t *srb) {
     srb->mhdr.msg_control = NULL;
     srb->mhdr.msg_controllen = 0;
     srb->mhdr.msg_flags = 0;
-    srb->mhdr.msg_name = &srb->aux.dst.ep.addr;
-    srb->mhdr.msg_namelen = sizeof(srb->aux.dst.ep.addr);
+    srb->mhdr.msg_name = &srb->aux.src.ep.addr;
+    srb->mhdr.msg_namelen = sizeof(srb->aux.src.ep.addr);
 
     srb->vec.iov_base = buffer_data(*buffer);
     srb->vec.iov_len = bytes_pending;
@@ -342,53 +397,28 @@ void srb_recv_sync(srb_t *srb) {
 
     srb->bytes_operated = bytes_op;
 
+    if (srb->operation.type == EPT_UDP)
+        translate_ep(&srb->aux.src.ep);
+
     if (srb->cb)
-        (*srb->cb)(srb, srb->aux.dst->ep, errno, srb->ctx);
+        (*srb->cb)(srb, srb->aux.src.ep, errno, srb->ctx);
 
     deallocate(srb);
-
-    /* TODO */
 }
 
-static
-void srb_send_async(srb_t *srb) {
-    /* TODO */
-}
-
-static
-void srb_send_sync(srb_t *srb) {
-    /* TODO */
-}
-
-static
-void srb_recv(srb_t *srb) {
-}
-
-static
-void srb_send(srb_t *srb) {
-}
+/******************************/
 
 void srb_operate(srb_t *srb) {
+    OPERATOR *op;
+
     if (!srb) return;
     assert(srb->operation.type < EPT_MAX && srb->operation.op < SRB_OP_MAX);
 
-    switch (srb->operation.op) {
-        case SRB_OP_RECV:
-            srb_recv(srb);
-            break;
-        case SRB_OP_SEND:
-            srb_send(srb);
-            break;
-    }
+    op = OPERATORS[OPERATOR_IDX(srb->operation.type,
+                                srb->operation.op,
+                                srb->iosvc != NULL)];
 
-    switch (srb->operation.type) {
-        case EPT_TCP:
-            operate_tcp(srb);
-            break;
-        case EPT_UDP:
-            operate_udp(srb);
-            break;
-    }
+    (*op)(srb);
 }
 
 void send_recv_cb(srb_t *srb, endpoint_t ep, int err, void *ctx) {

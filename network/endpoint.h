@@ -5,14 +5,14 @@
 # include <netinet/in.h>
 
 typedef enum endpoint_class_enum {
-    EPC_IP4,
+    EPC_IP4 = 0,
     EPC_IP6,
     EPC_MAX,
     EPC_NONE = EPC_MAX
 } endpoint_class_t;
 
 typedef enum endpoint_type_enum {
-    EPT_TCP,
+    EPT_TCP = 0,
     EPT_UDP,
     EPT_MAX,
     EPT_NONE = EPT_MAX

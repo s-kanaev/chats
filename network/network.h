@@ -77,7 +77,7 @@ struct send_recv_buffer {
     } aux;
 
     io_service_t *iosvc;
-    buffer_t **buffer;
+    buffer_t *buffer;
     size_t bytes_operated;                                  ///< internaly initialized
 
     srb_cb_t cb;
