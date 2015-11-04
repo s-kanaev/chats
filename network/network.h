@@ -41,6 +41,10 @@ typedef void (*network_send_recv_cb_t)(endpoint_t ep,
 
 typedef void (*srb_cb_t)(srb_t *srb, endpoint_t ep, int err, void *ctx);
 
+typedef enum network_send_recv_custom_error_enum {
+    NSRCE_BUFFER_TOO_SMALL = -1
+} network_send_recv_custom_error_t;
+
 typedef enum srb_operation_enum {
     SRB_OP_SEND = 0,
     SRB_OP_RECV,

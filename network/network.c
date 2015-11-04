@@ -305,8 +305,10 @@ void udp_send_sync(srb_t *srb) {
     srb->mhdr.msg_control = NULL;
     srb->mhdr.msg_controllen = 0;
     srb->mhdr.msg_flags = 0;
-    srb->mhdr.msg_name = NULL;
-    srb->mhdr.msg_namelen = 0;
+    srb->mhdr.msg_name = (struct sockaddr *)&srb->aux.dst.ep.addr;
+    srb->mhdr.msg_namelen = srb->aux.dst.ep.ep_class == EPC_IP4
+                             ? sizeof(struct sockaddr_in)
+                             : sizeof(struct sockaddr_in6);
 
     srb->vec.iov_base = buffer_data(buffer);
     srb->vec.iov_len = buffer_size(buffer);
@@ -347,8 +349,10 @@ void udp_send_async(srb_t *srb) {
     srb->mhdr.msg_control = NULL;
     srb->mhdr.msg_controllen = 0;
     srb->mhdr.msg_flags = 0;
-    srb->mhdr.msg_name = NULL;
-    srb->mhdr.msg_namelen = 0;
+    srb->mhdr.msg_name = (struct sockaddr *)&srb->aux.dst.ep.addr;
+    srb->mhdr.msg_namelen = srb->aux.dst.ep.ep_class == EPC_IP4
+                             ? sizeof(struct sockaddr_in)
+                             : sizeof(struct sockaddr_in6);
 
     srb->vec.iov_base = buffer_data(buffer);
     srb->vec.iov_len = buffer_size(buffer);
@@ -368,38 +372,55 @@ void udp_recv_sync(srb_t *srb) {
     buffer_t *buffer;
     size_t bytes_op;
     ssize_t bytes_op_cur;
-    socklen_t len;
+    srb_operation_t op;
+    NET_OPERATOR oper;
+    int bytes_pending;
 
     assert(srb &&
-           srb->aux.src &&
-           srb->aux.src->skt >= 0 &&
-           srb->aux.src->ep.ep_type == EPT_UDP);
-
-    len = sizeof(srb->aux.src->ep.addr);
+           srb->aux.src.skt >= 0 &&
+           srb->aux.src.ep.ep_type == EPT_UDP);
 
     buffer = srb->buffer;
+    op = srb->operation.op;
+    oper = NET_OPERATIONS[op].oper;
+
     assert(buffer != NULL);
 
-    bytes_op = srb->bytes_operated;
-
-    while (bytes_op < buffer_size(buffer)) {
-        errno = 0;
-        bytes_op_cur = recvfrom(srb->aux.dst->skt,
-                                buffer_data(buffer) + bytes_op,
-                                buffer_size(buffer) - bytes_op,
-                                MSG_NOSIGNAL,
-                                (struct sockaddr *)&srb->aux.src->ep.addr,
-                                &len);
-
-        if (bytes_op_cur < 0) break;
-
-        bytes_op += bytes_op_cur;
+    assert(0 == ioctl(srb->aux.src.skt, NET_OPERATIONS[op].ioctl_request, &bytes_pending));
+    if (bytes_pending > buffer_size(buffer)) {
+        if (srb->cb)
+            (*srb->cb)(srb->aux.src.ep, NSRCE_BUFFER_TOO_SMALL,
+                       0, bytes_pending, buffer, srb->ctx);
+        deallocate(srb);
     }
+
+    srb->mhdr.msg_iovlen = 1;
+    srb->mhdr.msg_iov = &srb->vec;
+    srb->mhdr.msg_control = NULL;
+    srb->mhdr.msg_controllen = 0;
+    srb->mhdr.msg_flags = 0;
+    srb->mhdr.msg_name = (struct sockaddr *)&srb->aux.src.ep.addr;
+    srb->mhdr.msg_namelen = srb->aux.src.ep.ep_class == EPC_IP4
+                             ? sizeof(struct sockaddr_in)
+                             : sizeof(struct sockaddr_in6);
+
+    srb->vec.iov_base = buffer_data(buffer);
+    srb->vec.iov_len = buffer_size(buffer);
+
+    bytes_op = srb->bytes_operated = 0;
+
+    errno = 0;
+    bytes_op_cur = (*oper)(srb->aux.dst.skt,
+                           &srb->mhdr,
+                           MSG_NOSIGNAL);
+    if (bytes_op_cur >= 0) bytes_op += bytes_op_cur;
 
     srb->bytes_operated = bytes_op;
 
+    translate_endpoint(&srb->aux.src.ep);
+
     if (srb->cb)
-        (*srb->cb)(srb, srb->aux.dst->ep, errno, srb->ctx);
+        (*srb->cb)(srb->aux.src.ep, errno, bytes_op, bytes_pending, buffer, srb->ctx);
 
     deallocate(srb);
 }
