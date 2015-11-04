@@ -34,7 +34,9 @@ typedef void (*tcp_client_connection_cb_t)(const endpoint_t *ep, int err,
  */
 typedef void (*network_send_recv_cb_t)(endpoint_t ep,
                                        int err,
-                                       size_t bytes, buffer_t *buffer,
+                                       size_t bytes_operated,
+                                       size_t has_more_bytes,
+                                       buffer_t *buffer,
                                        void *ctx);
 
 typedef void (*srb_cb_t)(srb_t *srb, endpoint_t ep, int err, void *ctx);
@@ -80,7 +82,7 @@ struct send_recv_buffer {
     buffer_t *buffer;
     size_t bytes_operated;                                  ///< internaly initialized
 
-    srb_cb_t cb;
+    network_send_recv_cb_t cb;
     void *ctx;
 
     /* internal */
