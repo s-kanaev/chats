@@ -55,4 +55,7 @@ struct endpoint_socket {
     endpoint_t ep;
 };
 
+/* fill in ep->ep based on ep->addr with appropriate ep_class */
+void translate_endpoint(endpoint_t *ep);
+
 #endif /* _CHATS_NETWORK_H_ */
