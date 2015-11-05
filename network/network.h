@@ -10,12 +10,14 @@
 # include <sys/types.h>
 # include <sys/socket.h>
 
+/****************** forward declarations *************/
 struct connection;
 typedef struct connection connection_t;
 
 struct send_recv_buffer;
 typedef struct send_recv_buffer srb_t;
 
+/****************** callback types *******************/
 /** callback on connection accept
  * \param [in] ep connected remote endpoint
  * \param [in] ctx user context
@@ -41,6 +43,7 @@ typedef void (*network_send_recv_cb_t)(endpoint_t ep,
 
 typedef void (*srb_cb_t)(srb_t *srb, endpoint_t ep, int err, void *ctx);
 
+/******************* enumerations ********************/
 typedef enum network_send_recv_custom_error_enum {
     NSRCE_BUFFER_TOO_SMALL = -1
 } network_send_recv_custom_error_t;
@@ -52,6 +55,7 @@ typedef enum srb_operation_enum {
     SRB_OP_NONE = SRB_OP_MAX
 } srb_operation_t;
 
+/******************* struct definitions *****************/
 struct connection_acceptor {
     void *host;
     tcp_connection_cb_t connection_cb;
@@ -88,6 +92,7 @@ struct send_recv_buffer {
     struct iovec vec;
 };
 
+/****************** functions prototypes **********************/
 void srb_operate(srb_t *srb);
-void send_recv_cb(srb_t *srb, endpoint_t ep, int err, void *ctx);
+
 #endif /* _CHATS_NETWORK_COMMON_H_ */
