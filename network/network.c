@@ -56,6 +56,7 @@ static void udp_recv_sync(srb_t *srb);
 
 #define OP_SYNC 0
 #define OP_ASYNC 1
+
 #define OPERATOR_IDX(proto, op, sync) \
     (\
      (((proto) & 0x01) << 0x02) | \
@@ -63,7 +64,7 @@ static void udp_recv_sync(srb_t *srb);
      (((sync) & 0x01)) \
     )
 
-static const OPERATOR *OPERATORS[] = {
+static const OPERATOR OPERATORS[] = {
     [OPERATOR_IDX(EPT_TCP, SRB_OP_SEND, OP_SYNC)] = tcp_send_recv_sync,
     [OPERATOR_IDX(EPT_TCP, SRB_OP_SEND, OP_ASYNC)] = tcp_send_recv_async,
     [OPERATOR_IDX(EPT_TCP, SRB_OP_RECV, OP_SYNC)] = tcp_send_recv_sync,
@@ -203,9 +204,15 @@ void udp_recv_async_tpl(int fd, io_svc_op_t op_, void *ctx) {
 
     assert(0 == ioctl(srb->aux.src.skt, NET_OPERATIONS[op].ioctl_request, &bytes_pending));
     if (bytes_pending > buffer_size(buffer)) {
+        errno = 0;
+        bytes_op_cur = (*oper)(srb->aux.src.skt,
+                               &srb->mhdr,
+                               MSG_NOSIGNAL | MSG_PEEK);
+
         if (srb->cb)
-            (*srb->cb)(srb->aux.src.ep, NSRCE_BUFFER_TOO_SMALL,
-                       0, bytes_pending, buffer, srb->ctx);
+            (*srb->cb)(srb->aux.src.ep, errno ? errno : NSRCE_BUFFER_TOO_SMALL,
+                       bytes_op_cur, bytes_pending, buffer, srb->ctx);
+
         deallocate(srb);
     }
 
@@ -426,14 +433,6 @@ void udp_recv_sync(srb_t *srb) {
 
     assert(buffer != NULL);
 
-    assert(0 == ioctl(srb->aux.src.skt, NET_OPERATIONS[op].ioctl_request, &bytes_pending));
-    if (bytes_pending > buffer_size(buffer)) {
-        if (srb->cb)
-            (*srb->cb)(srb->aux.src.ep, NSRCE_BUFFER_TOO_SMALL,
-                       0, bytes_pending, buffer, srb->ctx);
-        deallocate(srb);
-    }
-
     srb->mhdr.msg_iovlen = 1;
     srb->mhdr.msg_iov = &srb->vec;
     srb->mhdr.msg_control = NULL;
@@ -446,6 +445,20 @@ void udp_recv_sync(srb_t *srb) {
     srb->vec.iov_len = buffer_size(buffer);
 
     bytes_op = srb->bytes_operated = 0;
+
+    assert(0 == ioctl(srb->aux.src.skt, NET_OPERATIONS[op].ioctl_request, &bytes_pending));
+    if (bytes_pending > buffer_size(buffer)) {
+        errno = 0;
+        bytes_op_cur = (*oper)(srb->aux.src.skt,
+                               &srb->mhdr,
+                               MSG_NOSIGNAL | MSG_PEEK);
+
+        if (srb->cb)
+            (*srb->cb)(srb->aux.src.ep, errno ? errno : NSRCE_BUFFER_TOO_SMALL,
+                       bytes_op_cur, bytes_pending, buffer, srb->ctx);
+
+        deallocate(srb);
+    }
 
     errno = 0;
     bytes_op_cur = (*oper)(srb->aux.src.skt,
@@ -502,7 +515,7 @@ void udp_recv_async(srb_t *srb) {
 }
 
 void srb_operate(srb_t *srb) {
-    OPERATOR *op;
+    OPERATOR op;
 
     if (!srb) return;
     assert(srb->operation.type < EPT_MAX && srb->operation.op < SRB_OP_MAX);
