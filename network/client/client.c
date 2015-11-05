@@ -524,20 +524,11 @@ void client_udp_local_ep(client_udp_t *client, endpoint_t **ep) {
 
 void client_udp_recv_sync(client_udp_t *client,
                           buffer_t *buffer,
-                          const char *addr, const char *port,
                           network_send_recv_cb_t cb, void *ctx) {
     srb_t *srb;
 
     if (!client || !buffer || !buffer_size(buffer))
         return;
-
-    if (!addr && !port) {
-        if (cb) (*cb)((endpoint_t){.ep_type = EPT_NONE, .ep_class = EPC_NONE},
-                      EADDRNOTAVAIL,
-                      0, 0, buffer,
-                      ctx);
-        return;
-    }
 
     srb = allocate(sizeof(srb_t));
     assert(srb != NULL);
@@ -546,7 +537,7 @@ void client_udp_recv_sync(client_udp_t *client,
     srb->bytes_operated = 0;
     srb->cb = cb;
     srb->ctx = ctx;
-    srb->operation.type = EPT_TCP;
+    srb->operation.type = EPT_UDP;
     srb->operation.op = SRB_OP_SEND;
     srb->iosvc = NULL;
     srb->aux.src.skt = client->local.skt;
@@ -555,7 +546,45 @@ void client_udp_recv_sync(client_udp_t *client,
     srb_operate(srb);
 }
 
+void client_udp_recv_async(client_udp_t *client,
+                           buffer_t *buffer,
+                           network_send_recv_cb_t cb, void *ctx) {
+    srb_t *srb;
 
+    if (!client || !buffer || !buffer_size(buffer))
+        return;
+
+    srb = allocate(sizeof(srb_t));
+    assert(srb != NULL);
+
+    srb->buffer = buffer;
+    srb->bytes_operated = 0;
+    srb->cb = cb;
+    srb->ctx = ctx;
+    srb->operation.type = EPT_UDP;
+    srb->operation.op = SRB_OP_SEND;
+    srb->iosvc = client->master;
+    srb->aux.src.skt = client->local.skt;
+    srb->aux.dst.skt = -1;
+
+    srb_operate(srb);
+}
+
+void client_udp_send_sync(client_udp_t *client,
+                          buffer_t *buffer,
+                          const char *addr, const char *port,
+                          network_send_recv_cb_t cb, void *ctx) {
+#warning "Not implemented"
+    assert(NOT_IMPLEMENTED);
+}
+
+void client_udp_send_async(client_udp_t *client,
+                           buffer_t *buffer,
+                           const char *addr, const char *port,
+                           network_send_recv_cb_t cb, void *ctx) {
+#warning "Not implemented"
+    assert(NOT_IMPLEMENTED);
+}
 
 
 
