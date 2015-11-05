@@ -127,7 +127,7 @@ static
 void client_tcp_connector(int fd, io_svc_op_t op, void *ctx) {
     struct connector *connector = ctx;
     client_tcp_t *client = connector->host;
-    int ret;
+    int ret, flags;
     int err;
     socklen_t len = sizeof(err);
 
@@ -138,6 +138,11 @@ void client_tcp_connector(int fd, io_svc_op_t op, void *ctx) {
 
     if (err)
         client_tcp_disconnect(client);
+
+    flags = fcntl(client->local.skt, F_GETFL);
+    assert(flags >= 0);
+    flags &= ~O_NONBLOCK;
+    assert(fcntl(client->local.skt, F_SETFL, flags));
 
     if (connector->connection_cb)
         (*connector->connection_cb)(&client->remote.ep, err, connector->connection_ctx);
@@ -248,7 +253,6 @@ void client_tcp_connect_sync(client_tcp_t *client,
                             client->reuse_addr, &client->local)) return;
 
     memset(&hint, 0, sizeof(hint));
-
     hint.ai_family = client->local.ep.ep_class == EPC_IP4
                       ? AF_INET
                       : AF_INET6;
@@ -296,7 +300,6 @@ void client_tcp_connect_async(client_tcp_t *client,
     struct addrinfo *addr_info = NULL, *cur_addr, hint;
     int ret;
     struct connector *connector;
-    uint32_t local_addr;
 
     if (!client || !addr || !port) return;
 
@@ -318,11 +321,7 @@ void client_tcp_connect_async(client_tcp_t *client,
 
     flags = fcntl(client->local.skt, F_GETFL);
     assert(flags >= 0);
-
-    if (fcntl(client->local.skt, F_SETFL, flags | O_NONBLOCK)) {
-        if (cb) (*cb)(NULL, errno, ctx);
-        return;
-    }
+    assert(fcntl(client->local.skt, F_SETFL, flags | O_NONBLOCK));
 
     memset(&hint, 0, sizeof(hint));
     hint.ai_family = client->local.ep.ep_class == EPC_IP4
@@ -574,37 +573,114 @@ void client_udp_send_sync(client_udp_t *client,
                           buffer_t *buffer,
                           const char *addr, const char *port,
                           network_send_recv_cb_t cb, void *ctx) {
-#warning "Not implemented"
-    assert(NOT_IMPLEMENTED);
+    srb_t *srb;
+    struct addrinfo *addr_info = NULL, hint;
+    int ret;
+
+    if (!client || !buffer || !buffer_size(buffer))
+        return;
+
+    if (!addr && !port) {
+        if (cb)
+            (*cb)((endpoint_t){.ep_class = EPC_NONE, .ep_type = EPT_NONE},
+                  EADDRNOTAVAIL,
+                  0, 0,
+                  buffer, ctx);
+        return;
+    }
+
+    memset(&hint, 0, sizeof(hint));
+    hint.ai_family = client->local.ep.ep_class == EPC_IP4
+                      ? AF_INET
+                      : AF_INET6;
+    hint.ai_socktype = SOCK_STREAM;
+    hint.ai_protocol = 0;
+    hint.ai_flags = AI_V4MAPPED;
+    ret = getaddrinfo(addr, port, &hint, &addr_info);
+    if (ret != 0 || !addr_info) {
+        if (cb)
+            (*cb)((endpoint_t){.ep_class = EPC_NONE, .ep_type = EPT_NONE},
+                  EADDRNOTAVAIL,
+                  0, 0,
+                  buffer, ctx);
+        return;
+    }
+
+    srb = allocate(sizeof(srb_t));
+    assert(srb != NULL);
+
+    memcpy(&srb->aux.dst.ep.addr, addr_info->ai_addr, addr_info->ai_addrlen);
+    translate_endpoint(&srb->aux.dst.ep);
+
+    freeaddrinfo(addr_info);
+
+    srb->buffer = buffer;
+    srb->bytes_operated = 0;
+    srb->cb = cb;
+    srb->ctx = ctx;
+    srb->operation.type = EPT_UDP;
+    srb->operation.op = SRB_OP_SEND;
+    srb->iosvc = NULL;
+    srb->aux.src.skt = -1;
+    srb->aux.dst.skt = client->local.skt;
+
+    srb_operate(srb);
 }
 
 void client_udp_send_async(client_udp_t *client,
                            buffer_t *buffer,
                            const char *addr, const char *port,
                            network_send_recv_cb_t cb, void *ctx) {
-#warning "Not implemented"
-    assert(NOT_IMPLEMENTED);
+    srb_t *srb;
+    struct addrinfo *addr_info = NULL, hint;
+    int ret;
+
+    if (!client || !buffer || !buffer_size(buffer))
+        return;
+
+    if (!addr && !port) {
+        if (cb)
+            (*cb)((endpoint_t){.ep_class = EPC_NONE, .ep_type = EPT_NONE},
+                  EADDRNOTAVAIL,
+                  0, 0,
+                  buffer, ctx);
+        return;
+    }
+
+    memset(&hint, 0, sizeof(hint));
+    hint.ai_family = client->local.ep.ep_class == EPC_IP4
+                      ? AF_INET
+                      : AF_INET6;
+    hint.ai_socktype = SOCK_STREAM;
+    hint.ai_protocol = 0;
+    hint.ai_flags = AI_V4MAPPED;
+    ret = getaddrinfo(addr, port, &hint, &addr_info);
+    if (ret != 0 || !addr_info) {
+        if (cb)
+            (*cb)((endpoint_t){.ep_class = EPC_NONE, .ep_type = EPT_NONE},
+                  EADDRNOTAVAIL,
+                  0, 0,
+                  buffer, ctx);
+        return;
+    }
+
+    srb = allocate(sizeof(srb_t));
+    assert(srb != NULL);
+
+    memcpy(&srb->aux.dst.ep.addr, addr_info->ai_addr, addr_info->ai_addrlen);
+    translate_endpoint(&srb->aux.dst.ep);
+
+    freeaddrinfo(addr_info);
+
+    srb->buffer = buffer;
+    srb->bytes_operated = 0;
+    srb->cb = cb;
+    srb->ctx = ctx;
+    srb->operation.type = EPT_UDP;
+    srb->operation.op = SRB_OP_SEND;
+    srb->iosvc = client->master;
+    srb->aux.src.skt = -1;
+    srb->aux.dst.skt = client->local.skt;
+
+    srb_operate(srb);
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
