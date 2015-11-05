@@ -250,8 +250,7 @@ void tcp_send_recv_sync(srb_t *srb) {
                   ? &srb->aux.dst
                   : &srb->aux.src;
 
-    assert(ep_skt_ptr->skt >= 0 &&
-               ep_skt_ptr->ep.ep_type == EPT_TCP);
+    assert(ep_skt_ptr->skt >= 0 && ep_skt_ptr->ep.ep_type == EPT_TCP);
 
     buffer = srb->buffer;
     op = srb->operation.op;
@@ -321,7 +320,7 @@ void tcp_send_recv_async(srb_t *srb) {
     srb->bytes_operated = 0;
 
     io_service_post_job(srb->iosvc,
-                        srb->aux.dst.skt,
+                        ep_skt_ptr->skt,
                         NET_OPERATIONS[srb->operation.op].iosvc_op,
                         true,
                         tcp_send_recv_async_tpl,
