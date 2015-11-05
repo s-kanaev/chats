@@ -289,8 +289,8 @@ void oto_server_tcp_recv_sync(oto_server_tcp_t *server,
     srb->operation.type = EPT_TCP;
     srb->operation.op = SRB_OP_RECV;
     srb->iosvc = NULL;
-    srb->aux.src = NULL;
-    srb->aux.dst = &server->remote.ep_skt;
+    srb->aux.src = &server->remote.ep_skt;
+    srb->aux.dst = NULL;
 
     srb_operate(srb);
 }
@@ -313,8 +313,8 @@ void oto_server_tcp_recv_async(oto_server_tcp_t *server,
     srb->operation.type = EPT_TCP;
     srb->operation.op = SRB_OP_RECV;
     srb->iosvc = server->master;
-    srb->aux.src = NULL;
-    srb->aux.dst = &server->remote.ep_skt;
+    srb->aux.src = &server->remote.ep_skt;
+    srb->aux.dst = NULL;
 
     srb_operate(srb);
 }
