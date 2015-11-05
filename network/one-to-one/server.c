@@ -46,8 +46,8 @@ void oto_tcp_acceptor(int fd, io_svc_op_t op, void *ctx) {
     assert(afd >= 0);
 
     server->connected = true;
+    server->remote.ep_skt.ep.ep_type = EPT_TCP;
     server->remote.ep_skt.skt = afd;
-
     translate_endpoint(&server->remote.ep_skt.ep);
 
     if (!(*acceptor->connection_cb)(&server->remote,
@@ -241,8 +241,8 @@ void oto_server_tcp_send_sync(oto_server_tcp_t *server,
     srb->operation.type = EPT_TCP;
     srb->operation.op = SRB_OP_SEND;
     srb->iosvc = NULL;
-    srb->aux.src = NULL;
-    srb->aux.dst = &server->remote.ep_skt;
+    srb->aux.src.skt = -1;
+    srb->aux.dst = server->remote.ep_skt;
 
     srb_operate(srb);
 }
@@ -265,8 +265,8 @@ void oto_server_tcp_send_async(oto_server_tcp_t *server,
     srb->operation.type = EPT_TCP;
     srb->operation.op = SRB_OP_SEND;
     srb->iosvc = server->master;
-    srb->aux.src = NULL;
-    srb->aux.dst = &server->remote.ep_skt;
+    srb->aux.src.skt = -1;
+    srb->aux.dst = server->remote.ep_skt;
 
     srb_operate(srb);
 }
@@ -289,8 +289,8 @@ void oto_server_tcp_recv_sync(oto_server_tcp_t *server,
     srb->operation.type = EPT_TCP;
     srb->operation.op = SRB_OP_RECV;
     srb->iosvc = NULL;
-    srb->aux.src = &server->remote.ep_skt;
-    srb->aux.dst = NULL;
+    srb->aux.src = server->remote.ep_skt;
+    srb->aux.dst.skt = -1;
 
     srb_operate(srb);
 }
@@ -313,8 +313,8 @@ void oto_server_tcp_recv_async(oto_server_tcp_t *server,
     srb->operation.type = EPT_TCP;
     srb->operation.op = SRB_OP_RECV;
     srb->iosvc = server->master;
-    srb->aux.src = &server->remote.ep_skt;
-    srb->aux.dst = NULL;
+    srb->aux.src = server->remote.ep_skt;
+    srb->aux.dst.skt = -1;
 
     srb_operate(srb);
 }
