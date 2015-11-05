@@ -52,12 +52,6 @@ typedef enum srb_operation_enum {
     SRB_OP_NONE = SRB_OP_MAX
 } srb_operation_t;
 
-struct send_recv_ctx {
-    network_send_recv_cb_t cb;
-    void *ctx;
-};
-typedef struct send_recv_ctx src_t;
-
 struct connection_acceptor {
     void *host;
     tcp_connection_cb_t connection_cb;
