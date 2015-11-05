@@ -22,3 +22,9 @@ target_link_libraries(otm-server-test chats-io-service
                                       chats-thread-pool
                                       chats-timer
                                       chats-network)
+
+add_executable(client-udp-test udp-client.c)
+target_link_libraries(client-udp-test chats-io-service
+                                      chats-thread-pool
+                                      chats-timer
+                                      chats-network)
