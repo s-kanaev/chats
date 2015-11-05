@@ -45,11 +45,10 @@ void client_udp_send_sync(client_udp_t *client, buffer_t *buffer,
 void client_udp_send_async(client_udp_t *client, buffer_t *buffer,
                            const char *addr, const char *port,
                            network_send_recv_cb_t cb, void *ctx);
-void client_udp_recv_sync(client_udp_t *client, buffer_t *buffer,
-                          const char *addr, const char *port,
+void client_udp_recv_sync(client_udp_t *client,
+                          buffer_t *buffer,
                           network_send_recv_cb_t cb, void *ctx);
 void client_udp_recv_async(client_udp_t *client, buffer_t *buffer,
-                           const char *addr, const char *port,
                            network_send_recv_cb_t cb, void *ctx);
 
 #endif /* _CHATS_CLIENT_H_ */

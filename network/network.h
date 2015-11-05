@@ -8,13 +8,16 @@
 # include <stddef.h>
 # include <stdbool.h>
 # include <sys/types.h>
+# include <sys/socket.h>
 
+/****************** forward declarations *************/
 struct connection;
 typedef struct connection connection_t;
 
 struct send_recv_buffer;
 typedef struct send_recv_buffer srb_t;
 
+/****************** callback types *******************/
 /** callback on connection accept
  * \param [in] ep connected remote endpoint
  * \param [in] ctx user context
@@ -31,11 +34,19 @@ typedef void (*tcp_client_connection_cb_t)(const endpoint_t *ep, int err,
  * \param [in] buffer buffer sent
  * \param [in] ctx user context
  */
-typedef void (*network_send_recv_cb_t)(int err,
-                                       size_t bytes, buffer_t *buffer,
+typedef void (*network_send_recv_cb_t)(endpoint_t ep,
+                                       int err,
+                                       size_t bytes_operated,
+                                       size_t has_more_bytes,
+                                       buffer_t *buffer,
                                        void *ctx);
 
 typedef void (*srb_cb_t)(srb_t *srb, endpoint_t ep, int err, void *ctx);
+
+/******************* enumerations ********************/
+typedef enum network_send_recv_custom_error_enum {
+    NSRCE_BUFFER_TOO_SMALL = -1
+} network_send_recv_custom_error_t;
 
 typedef enum srb_operation_enum {
     SRB_OP_SEND = 0,
@@ -44,18 +55,7 @@ typedef enum srb_operation_enum {
     SRB_OP_NONE = SRB_OP_MAX
 } srb_operation_t;
 
-struct send_recv_ctx {
-    network_send_recv_cb_t cb;
-    void *ctx;
-};
-typedef struct send_recv_ctx src_t;
-
-// typedef enum network_operation_tcp_enum {
-//     NETWORK_TCP_OP_RECEIVE = 0,
-//     NETWORK_TCP_OP_SEND = 1,
-//     NETWORK_TCP_OP_COUNT
-// } network_tcp_op_t;
-
+/******************* struct definitions *****************/
 struct connection_acceptor {
     void *host;
     tcp_connection_cb_t connection_cb;
@@ -69,24 +69,30 @@ struct connector {
 };
 
 struct send_recv_buffer {
+    /* user provided */
     struct {
         endpoint_type_t type;
         srb_operation_t op;
     } operation;
 
     struct {
-        endpoint_socket_t *src;
-        endpoint_socket_t *dst;
+        endpoint_socket_t src;
+        endpoint_socket_t dst;
     } aux;
 
     io_service_t *iosvc;
     buffer_t *buffer;
-    size_t bytes_operated;
+    size_t bytes_operated;                                  ///< internaly initialized
 
-    srb_cb_t cb;
+    network_send_recv_cb_t cb;
     void *ctx;
+
+    /* internal */
+    struct msghdr mhdr;
+    struct iovec vec;
 };
 
+/****************** functions prototypes **********************/
 void srb_operate(srb_t *srb);
-void send_recv_cb(srb_t *srb, endpoint_t ep, int err, void *ctx);
+
 #endif /* _CHATS_NETWORK_COMMON_H_ */

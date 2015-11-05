@@ -5,14 +5,14 @@
 # include <netinet/in.h>
 
 typedef enum endpoint_class_enum {
-    EPC_IP4,
+    EPC_IP4 = 0,
     EPC_IP6,
     EPC_MAX,
     EPC_NONE = EPC_MAX
 } endpoint_class_t;
 
 typedef enum endpoint_type_enum {
-    EPT_TCP,
+    EPT_TCP = 0,
     EPT_UDP,
     EPT_MAX,
     EPT_NONE = EPT_MAX
@@ -40,11 +40,6 @@ struct ip6_endpoint {
     uint16_t port;
 };
 
-typedef union ip_addr {
-    struct sockaddr_in ip4;
-    struct sockaddr_in6 ip6;
-} ip_addr_t;
-
 struct endpoint {
     endpoint_class_t ep_class;
     endpoint_type_t ep_type;
@@ -52,12 +47,15 @@ struct endpoint {
         ip4_endpoint_t ip4;
         ip6_endpoint_t ip6;
     } ep;
-    ip_addr_t addr;
+    struct sockaddr_storage addr;
 };
 
 struct endpoint_socket {
     int skt;
     endpoint_t ep;
 };
+
+/* fill in ep->ep based on ep->addr with appropriate ep_class */
+void translate_endpoint(endpoint_t *ep);
 
 #endif /* _CHATS_NETWORK_H_ */

@@ -13,8 +13,8 @@ typedef struct {
     buffer_t *buffer;
 } context_t;
 
-void data_received(int err, size_t bytes, buffer_t *buffer, void *ctx);
-void data_sent(int err, size_t bytes, buffer_t *buffer, void *ctx);
+void data_received(endpoint_t ep, int err, size_t bytes, size_t more_bytes, buffer_t *buffer, void *ctx);
+void data_sent(endpoint_t ep, int err, size_t bytes, size_t more_bytes, buffer_t *buffer, void *ctx);
 
 bool connection_accepted(const connection_t *conn, int err, void *ctx) {
     context_t *context = ctx;
@@ -33,7 +33,7 @@ bool connection_accepted(const connection_t *conn, int err, void *ctx) {
     return true;
 }
 
-void data_received(int err, size_t bytes, buffer_t *buffer, void *ctx) {
+void data_received(endpoint_t ep, int err, size_t bytes, size_t more_bytes, buffer_t *buffer, void *ctx) {
     connection_t *conn = ctx;
     size_t i;
     char *data = buffer_data(buffer);
@@ -56,7 +56,7 @@ void data_received(int err, size_t bytes, buffer_t *buffer, void *ctx) {
     otm_server_tcp_send_async(conn->host, conn, buffer, data_sent, ctx);
 }
 
-void data_sent(int err, size_t bytes, buffer_t *buffer, void *ctx) {
+void data_sent(endpoint_t ep, int err, size_t bytes, size_t more_bytes, buffer_t *buffer, void *ctx) {
     connection_t *conn = ctx;
     fprintf(stdout, "Sending error: %d: %s\n", err, strerror(err));
     //io_service_stop(context->service, true);
