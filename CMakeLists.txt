@@ -18,3 +18,5 @@ add_subdirectory(tests)
 add_subdirectory(io-service)
 add_subdirectory(timer)
 add_subdirectory(network)
+
+add_subdirectory(chats)
