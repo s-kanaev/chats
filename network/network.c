@@ -506,7 +506,7 @@ void udp_recv_async(srb_t *srb) {
     srb->bytes_operated = 0;
 
     io_service_post_job(srb->iosvc,
-                        srb->aux.dst.skt,
+                        srb->aux.src.skt,
                         NET_OPERATIONS[srb->operation.op].iosvc_op,
                         true,
                         udp_recv_async_tpl,
