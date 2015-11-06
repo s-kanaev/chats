@@ -138,12 +138,14 @@ fail:
 void oto_server_tcp_deinit(oto_server_tcp_t *server) {
     if (!server) return;
 
+    pthread_mutex_lock(&server->mutex);
     if (server->connected)
         oto_server_tcp_disconnect(server);
 
     shutdown(server->local.skt, SHUT_RDWR);
     close(server->local.skt);
 
+    pthread_mutex_unlock(&server->mutex);
     pthread_mutex_destroy(&server->mutex);
     pthread_mutexattr_destroy(&server->mtx_attr);
 
@@ -153,8 +155,12 @@ void oto_server_tcp_deinit(oto_server_tcp_t *server) {
 void oto_server_tcp_disconnect(oto_server_tcp_t *server) {
     if (!server) return;
 
+    pthread_mutex_lock(&server->mutex);
+
     shutdown(server->remote.ep_skt.skt, SHUT_RDWR);
     close(server->remote.ep_skt.skt);
+
+    pthread_mutex_unlock(&server->mutex);
 }
 
 void oto_server_tcp_listen_sync(oto_server_tcp_t *server,
@@ -218,8 +224,11 @@ void oto_server_tcp_remote_ep(oto_server_tcp_t *server, endpoint_socket_t *ep) {
     if (!server) return;
 
     pthread_mutex_lock(&server->mutex);
-    if (server->connected)
-        memcpy(ep, &server->remote.ep_skt, sizeof(*ep));
+    if (server->connected) memcpy(ep, &server->remote.ep_skt, sizeof(*ep));
+    else {
+        ep->ep.ep_type = EPT_NONE;
+        ep->ep.ep_class = EPC_NONE;
+    }
     pthread_mutex_unlock(&server->mutex);
 }
 
@@ -231,6 +240,7 @@ void oto_server_tcp_send_sync(oto_server_tcp_t *server,
     if (!server || !buffer || !buffer_size(buffer))
         return;
 
+    pthread_mutex_lock(&server->mutex);
     srb = allocate(sizeof(srb_t));
     assert(srb != NULL);
 
@@ -245,6 +255,7 @@ void oto_server_tcp_send_sync(oto_server_tcp_t *server,
     srb->aux.dst = server->remote.ep_skt;
 
     srb_operate(srb);
+    pthread_mutex_unlock(&server->mutex);
 }
 
 void oto_server_tcp_send_async(oto_server_tcp_t *server,
@@ -255,6 +266,7 @@ void oto_server_tcp_send_async(oto_server_tcp_t *server,
     if (!server || !buffer || !buffer_size(buffer))
         return;
 
+    pthread_mutex_lock(&server->mutex);
     srb = allocate(sizeof(srb_t));
     assert(srb != NULL);
 
@@ -269,6 +281,7 @@ void oto_server_tcp_send_async(oto_server_tcp_t *server,
     srb->aux.dst = server->remote.ep_skt;
 
     srb_operate(srb);
+    pthread_mutex_unlock(&server->mutex);
 }
 
 void oto_server_tcp_recv_sync(oto_server_tcp_t *server,
@@ -279,6 +292,7 @@ void oto_server_tcp_recv_sync(oto_server_tcp_t *server,
     if (!server || !buffer || !buffer_size(buffer))
         return;
 
+    pthread_mutex_lock(&server->mutex);
     srb = allocate(sizeof(srb_t));
     assert(srb != NULL);
 
@@ -293,6 +307,7 @@ void oto_server_tcp_recv_sync(oto_server_tcp_t *server,
     srb->aux.dst.skt = -1;
 
     srb_operate(srb);
+    pthread_mutex_unlock(&server->mutex);
 }
 
 void oto_server_tcp_recv_async(oto_server_tcp_t *server,
@@ -303,6 +318,7 @@ void oto_server_tcp_recv_async(oto_server_tcp_t *server,
     if (!server || !buffer || !buffer_size(buffer))
         return;
 
+    pthread_mutex_lock(&server->mutex);
     srb = allocate(sizeof(srb_t));
     assert(srb != NULL);
 
@@ -317,4 +333,5 @@ void oto_server_tcp_recv_async(oto_server_tcp_t *server,
     srb->aux.dst.skt = -1;
 
     srb_operate(srb);
+    pthread_mutex_unlock(&server->mutex);
 }

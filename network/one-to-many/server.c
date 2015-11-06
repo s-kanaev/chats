@@ -37,7 +37,6 @@ static
 void tcp_acceptor(int fd, io_svc_op_t op, void *ctx) {
     struct connection_acceptor *acceptor = ctx;
     otm_server_tcp_t *server = acceptor->host;
-    uint32_t addr;
     socklen_t len;
     struct sockaddr *dest_addr;
     int afd;
@@ -157,6 +156,8 @@ void otm_server_tcp_deinit(otm_server_tcp_t *server) {
 
     if (!server) return;
 
+    pthread_mutex_lock(&server->mutex);
+
     remotes_list = server->remotes_list;
     for (connection = list_first_element(remotes_list);
          connection;
@@ -166,6 +167,7 @@ void otm_server_tcp_deinit(otm_server_tcp_t *server) {
     shutdown(server->local.skt, SHUT_RDWR);
     close(server->local.skt);
 
+    pthread_mutex_unlock(&server->mutex);
     pthread_mutex_destroy(&server->mutex);
     pthread_mutexattr_destroy(&server->mtx_attr);
 
@@ -176,8 +178,10 @@ void otm_server_tcp_disconnect(otm_server_tcp_t *server,
                                const connection_t *connection) {
     if (!server || !connection || connection->host != server) return;
 
+    pthread_mutex_lock(&server->mutex);
     close_connection(connection);
     list_remove_element(server->remotes_list, (void *)connection);
+    pthread_mutex_unlock(&server->mutex);
 }
 
 void otm_server_tcp_listen_sync(otm_server_tcp_t *server,
@@ -239,6 +243,8 @@ void otm_server_tcp_send_sync(otm_server_tcp_t *server,
         !buffer_size(buffer) || connection->host != server)
         return;
 
+    pthread_mutex_lock(&server->mutex);
+
     srb = allocate(sizeof(srb_t));
     assert(srb != NULL);
 
@@ -253,6 +259,7 @@ void otm_server_tcp_send_sync(otm_server_tcp_t *server,
     srb->aux.dst = connection->ep_skt;
 
     srb_operate(srb);
+    pthread_mutex_unlock(&server->mutex);
 }
 
 void otm_server_tcp_send_async(otm_server_tcp_t *server,
@@ -265,6 +272,8 @@ void otm_server_tcp_send_async(otm_server_tcp_t *server,
         !buffer_size(buffer) || connection->host != server)
         return;
 
+    pthread_mutex_lock(&server->mutex);
+
     srb = allocate(sizeof(srb_t));
     assert(srb != NULL);
 
@@ -279,6 +288,8 @@ void otm_server_tcp_send_async(otm_server_tcp_t *server,
     srb->aux.dst = connection->ep_skt;
 
     srb_operate(srb);
+
+    pthread_mutex_unlock(&server->mutex);
 }
 
 void otm_server_tcp_recv_sync(otm_server_tcp_t *server,
@@ -290,6 +301,8 @@ void otm_server_tcp_recv_sync(otm_server_tcp_t *server,
     if (!server || !connection || !buffer ||
         !buffer_size(buffer) || connection->host != server)
         return;
+
+    pthread_mutex_lock(&server->mutex);
 
     srb = allocate(sizeof(srb_t));
     assert(srb != NULL);
@@ -305,6 +318,8 @@ void otm_server_tcp_recv_sync(otm_server_tcp_t *server,
     srb->aux.dst.skt = -1;
 
     srb_operate(srb);
+
+    pthread_mutex_lock(&server->mutex);
 }
 
 void otm_server_tcp_recv_async(otm_server_tcp_t *server,
@@ -316,6 +331,8 @@ void otm_server_tcp_recv_async(otm_server_tcp_t *server,
     if (!server || !connection || !buffer ||
         !buffer_size(buffer) || connection->host != server)
         return;
+
+    pthread_mutex_lock(&server->mutex);
 
     srb = allocate(sizeof(srb_t));
     assert(srb != NULL);
@@ -331,4 +348,5 @@ void otm_server_tcp_recv_async(otm_server_tcp_t *server,
     srb->aux.dst.skt = -1;
 
     srb_operate(srb);
+    pthread_mutex_unlock(&server->mutex);
 }
