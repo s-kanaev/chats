@@ -24,6 +24,14 @@
 ping_interval секунд. При отсутствии очередного подтверждения клиент считается
 отключившимся.
 Между запусками справочник хранится в БД SQLite 3.x
+-- Структура записей в БД.
+Таблица clients:
+    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    nickname CHAR(24),
+    keyword CHAR(24),
+    host TEXT,
+    port INTEGER,
+    UNIQUE(nickname)
 
 --- Клиент.
 Клиент при запуске подключается к серверу, представляется, запрашивает
