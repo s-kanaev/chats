@@ -64,8 +64,9 @@ bool client_init_socket(endpoint_type_t ept, endpoint_class_t epc,
 
     ep_skt->skt = -1;
 
+    if (epc == EPC_NONE) epc = EPC_IP4;
+
     if (addr == NULL && port == NULL) {
-        if (epc == EPC_NONE) epc = EPC_IP4;
         sfd = socket(FAMILY[epc],
                      TYPE[ept] | SOCK_CLOEXEC,
                      0);
@@ -77,7 +78,8 @@ bool client_init_socket(endpoint_type_t ept, endpoint_class_t epc,
                        sizeof(reuse))) goto fail;
 
         ep_skt->skt = sfd;
-        ep_skt->ep.ep_type = EPT_UDP;
+        ep_skt->ep.ep_type = ept;
+        ep_skt->ep.ep_class = epc;
         assert(0 == getsockname(sfd, (struct sockaddr *)&ep_skt->ep.addr, &len));
         translate_endpoint(&ep_skt->ep);
     } /* if (addr == NULL && port == NULL) */
@@ -109,7 +111,8 @@ bool client_init_socket(endpoint_type_t ept, endpoint_class_t epc,
 
         if (cur_addr == NULL) goto fail;
 
-        ep_skt->ep.ep_type = TYPE[ept];
+        ep_skt->ep.ep_type = ept;
+        ep_skt->ep.ep_class = epc;
         ep_skt->skt = sfd;
         memcpy(&ep_skt->ep.addr, cur_addr->ai_addr, cur_addr->ai_addrlen);
         translate_endpoint(&ep_skt->ep);
@@ -579,9 +582,10 @@ void client_udp_recv_sync(client_udp_t *client,
     srb->cb = cb;
     srb->ctx = ctx;
     srb->operation.type = EPT_UDP;
-    srb->operation.op = SRB_OP_SEND;
+    srb->operation.op = SRB_OP_RECV;
     srb->iosvc = NULL;
     srb->aux.src.skt = client->local.skt;
+    srb->aux.src.ep.ep_type = EPT_UDP;
     srb->aux.dst.skt = -1;
 
     srb_operate(srb);
@@ -605,9 +609,10 @@ void client_udp_recv_async(client_udp_t *client,
     srb->cb = cb;
     srb->ctx = ctx;
     srb->operation.type = EPT_UDP;
-    srb->operation.op = SRB_OP_SEND;
+    srb->operation.op = SRB_OP_RECV;
     srb->iosvc = client->master;
     srb->aux.src.skt = client->local.skt;
+    srb->aux.src.ep.ep_type = EPT_UDP;
     srb->aux.dst.skt = -1;
 
     srb_operate(srb);
@@ -672,6 +677,7 @@ void client_udp_send_sync(client_udp_t *client,
     srb->iosvc = NULL;
     srb->aux.src.skt = -1;
     srb->aux.dst.skt = client->local.skt;
+    srb->aux.dst.ep.ep_type = EPT_UDP;
 
     srb_operate(srb);
     pthread_mutex_unlock(&client->mutex);
@@ -734,6 +740,7 @@ void client_udp_send_async(client_udp_t *client,
     srb->iosvc = client->master;
     srb->aux.src.skt = -1;
     srb->aux.dst.skt = client->local.skt;
+    srb->aux.dst.ep.ep_type = EPT_UDP;
 
     srb_operate(srb);
     pthread_mutex_unlock(&client->mutex);
