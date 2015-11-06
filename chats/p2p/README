@@ -28,7 +28,7 @@ ping_interval секунд. При отсутствии очередного п�
 Таблица clients:
     id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
     nickname CHAR(24),
-    keyword CHAR(24),
+    keyword CHAR(128),
     host TEXT,
     port INTEGER,
     UNIQUE(nickname)
@@ -47,8 +47,9 @@ ping_interval секунд. При отсутствии очередного п�
 
 --- Подробности.
 Ключевые слова:
-    nickname - название клиента в чате.
-    keyword - кодовое слово, выделяемое сервером клиенту.
+    nickname - название клиента в чате (не более 24 знаков латиницы, цифр, _).
+    keyword - кодовое слово, выделяемое сервером клиенту
+              (не более 128 знаков, без пробела).
     ip - адрес собеседника.
     port - порт собеседника.
     cl_cnt - кол-во собеседников.
@@ -76,13 +77,13 @@ CHANNEL_SWITCH
 
 -- Второй канал:
 Добавленые строки в справочнике (с-к):
-keyword len REF_ADD cl_cnt (nickname ip port)/cl_cnt
+CTRL keyword len REF_ADD cl_cnt (nickname ip port)/cl_cnt
 
 Убраные строки в справочнике (c-к):
-keyword len REF_DEL cl_cnt (nickname)/cl_cnt
+CTRL keyword len REF_DEL cl_cnt (nickname)/cl_cnt
 
 Отключение (к-с):
-keyword len QUIT nickname
+CTRL keyword len QUIT nickname
 
 Подтверждение наличия клиента на связи (к-с)
-keyword len PING nickname
+CTRL keyword len PING nickname
