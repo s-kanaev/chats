@@ -131,6 +131,7 @@ void client_tcp_connector(int fd, io_svc_op_t op, void *ctx) {
     int err;
     socklen_t len = sizeof(err);
 
+    pthread_mutex_lock(&client->mutex);
     ret = getsockopt(client->local.skt, SOL_SOCKET, SO_ERROR, &err, &len);
     assert(ret == 0);
 
@@ -147,6 +148,7 @@ void client_tcp_connector(int fd, io_svc_op_t op, void *ctx) {
     if (connector->connection_cb)
         (*connector->connection_cb)(&client->remote.ep, err, connector->connection_ctx);
 
+    pthread_mutex_unlock(&client->mutex);
     deallocate(connector);
 }
 
@@ -192,12 +194,14 @@ fail:
 void client_tcp_deinit(client_tcp_t *client) {
     if (!client) return;
 
+    pthread_mutex_lock(&client->mutex);
     if (client->connected)
         client_tcp_disconnect(client);
 
     shutdown(client->local.skt, SHUT_RDWR);
     close(client->local.skt);
 
+    pthread_mutex_unlock(&client->mutex);
     pthread_mutex_destroy(&client->mutex);
     pthread_mutexattr_destroy(&client->mtx_attr);
 
@@ -208,26 +212,38 @@ void client_tcp_deinit(client_tcp_t *client) {
 
 void client_tcp_disconnect(client_tcp_t *client) {
     if (!client) return;
-    if (!client->connected) return;
+
+    pthread_mutex_lock(&client->mutex);
+
+    if (!client->connected) {
+        pthread_mutex_unlock(&client->mutex);
+        return;
+    }
 
     shutdown(client->local.skt, SHUT_RDWR);
     close(client->local.skt);
     client->local.skt = -1;
     client->connected = false;
+
+    pthread_mutex_unlock(&client->mutex);
 }
 
 void client_tcp_local_ep(client_tcp_t *client, endpoint_t **ep) {
     if (ep == NULL || client == NULL) return;
     if (*ep == NULL) *ep = allocate(sizeof(endpoint_t));
 
+    pthread_mutex_lock(&client->mutex);
     memcpy(*ep, &client->local.ep, sizeof(client->local.ep));
+    pthread_mutex_unlock(&client->mutex);
 }
 
 void client_tcp_remote_ep(client_tcp_t *client, endpoint_t **ep) {
     if (ep == NULL || client == NULL) return;
     if (*ep == NULL) *ep = allocate(sizeof(endpoint_t));
 
+    pthread_mutex_lock(&client->mutex);
     memcpy(*ep, &client->remote.ep, sizeof(client->remote.ep));
+    pthread_mutex_unlock(&client->mutex);
 }
 
 void client_tcp_connect_sync(client_tcp_t *client,
@@ -243,6 +259,8 @@ void client_tcp_connect_sync(client_tcp_t *client,
         return;
     }
 
+    pthread_mutex_lock(&client->mutex);
+
     if (client->local.skt >= 0) {
         (*cb)(&client->local.ep, EISCONN, ctx);
         return;
@@ -250,7 +268,10 @@ void client_tcp_connect_sync(client_tcp_t *client,
 
     if (!client_init_socket(EPT_TCP, EPC_NONE,
                             client->local_addr, client->local_port,
-                            client->reuse_addr, &client->local)) return;
+                            client->reuse_addr, &client->local)) {
+        pthread_mutex_unlock(&client->mutex);
+        return;
+    }
 
     memset(&hint, 0, sizeof(hint));
     hint.ai_family = client->local.ep.ep_class == EPC_IP4
@@ -289,6 +310,9 @@ void client_tcp_connect_sync(client_tcp_t *client,
     }
 
     if (cb) (*cb)(ep, errno, ctx);
+
+    pthread_mutex_unlock(&client->mutex);
+
     if (addr_info) freeaddrinfo(addr_info);
 }
 
@@ -303,6 +327,7 @@ void client_tcp_connect_async(client_tcp_t *client,
 
     if (!client || !addr || !port) return;
 
+    pthread_mutex_lock(&client->mutex);
     if (client->local.skt >= 0) {
         (*cb)(&client->local.ep, EISCONN, ctx);
         return;
@@ -310,7 +335,10 @@ void client_tcp_connect_async(client_tcp_t *client,
 
     if (!client_init_socket(EPT_TCP, EPC_NONE,
                             client->local_addr, client->local_port,
-                            client->reuse_addr, &client->local)) return;
+                            client->reuse_addr, &client->local)) {
+        pthread_mutex_unlock(&client->mutex);
+        return;
+    }
 
     connector = allocate(sizeof(struct connector));
     assert(connector);
@@ -359,6 +387,7 @@ void client_tcp_connect_async(client_tcp_t *client,
         deallocate(connector);
     }
 
+    pthread_mutex_unlock(&client->mutex);
     if (addr_info) freeaddrinfo(addr_info);
 }
 
@@ -369,6 +398,7 @@ void client_tcp_recv_sync(client_tcp_t *client, buffer_t *buffer,
     if (!client || !buffer || !buffer_size(buffer))
         return;
 
+    pthread_mutex_lock(&client->mutex);
     srb = allocate(sizeof(srb_t));
     assert(srb != NULL);
 
@@ -383,6 +413,7 @@ void client_tcp_recv_sync(client_tcp_t *client, buffer_t *buffer,
     srb->aux.dst.skt = -1;
 
     srb_operate(srb);
+    pthread_mutex_unlock(&client->mutex);
 }
 
 void client_tcp_recv_async(client_tcp_t *client, buffer_t *buffer,
@@ -392,6 +423,7 @@ void client_tcp_recv_async(client_tcp_t *client, buffer_t *buffer,
     if (!client || !buffer || !buffer_size(buffer))
         return;
 
+    pthread_mutex_lock(&client->mutex);
     srb = allocate(sizeof(srb_t));
     assert(srb != NULL);
 
@@ -406,6 +438,7 @@ void client_tcp_recv_async(client_tcp_t *client, buffer_t *buffer,
     srb->aux.dst.skt = -1;
 
     srb_operate(srb);
+    pthread_mutex_unlock(&client->mutex);
 }
 
 void client_tcp_send_sync(client_tcp_t *client, buffer_t *buffer,
@@ -415,6 +448,7 @@ void client_tcp_send_sync(client_tcp_t *client, buffer_t *buffer,
     if (!client || !buffer || !buffer_size(buffer))
         return;
 
+    pthread_mutex_lock(&client->mutex);
     srb = allocate(sizeof(srb_t));
     assert(srb != NULL);
 
@@ -429,6 +463,7 @@ void client_tcp_send_sync(client_tcp_t *client, buffer_t *buffer,
     srb->aux.dst = client->remote;
 
     srb_operate(srb);
+    pthread_mutex_unlock(&client->mutex);
 }
 
 void client_tcp_send_async(client_tcp_t *client, buffer_t *buffer,
@@ -438,6 +473,7 @@ void client_tcp_send_async(client_tcp_t *client, buffer_t *buffer,
     if (!client || !buffer || !buffer_size(buffer))
         return;
 
+    pthread_mutex_lock(&client->mutex);
     srb = allocate(sizeof(srb_t));
     assert(srb != NULL);
 
@@ -452,6 +488,7 @@ void client_tcp_send_async(client_tcp_t *client, buffer_t *buffer,
     srb->aux.dst = client->remote;
 
     srb_operate(srb);
+    pthread_mutex_unlock(&client->mutex);
 }
 
 /********************** UDP client **********************************/
@@ -503,9 +540,11 @@ fail:
 void client_udp_deinit(client_udp_t *client) {
     if (!client) return;
 
+    pthread_mutex_lock(&client->mutex);
     shutdown(client->local.skt, SHUT_RDWR);
     close(client->local.skt);
 
+    pthread_mutex_unlock(&client->mutex);
     pthread_mutex_destroy(&client->mutex);
     pthread_mutexattr_destroy(&client->mtx_attr);
 
@@ -518,7 +557,9 @@ void client_udp_local_ep(client_udp_t *client, endpoint_t **ep) {
     if (ep == NULL || client == NULL) return;
     if (*ep == NULL) *ep = allocate(sizeof(endpoint_t));
 
+    pthread_mutex_lock(&client->mutex);
     memcpy(*ep, &client->local.ep, sizeof(client->local.ep));
+    pthread_mutex_unlock(&client->mutex);
 }
 
 void client_udp_recv_sync(client_udp_t *client,
@@ -529,6 +570,7 @@ void client_udp_recv_sync(client_udp_t *client,
     if (!client || !buffer || !buffer_size(buffer))
         return;
 
+    pthread_mutex_lock(&client->mutex);
     srb = allocate(sizeof(srb_t));
     assert(srb != NULL);
 
@@ -543,6 +585,7 @@ void client_udp_recv_sync(client_udp_t *client,
     srb->aux.dst.skt = -1;
 
     srb_operate(srb);
+    pthread_mutex_unlock(&client->mutex);
 }
 
 void client_udp_recv_async(client_udp_t *client,
@@ -553,6 +596,7 @@ void client_udp_recv_async(client_udp_t *client,
     if (!client || !buffer || !buffer_size(buffer))
         return;
 
+    pthread_mutex_lock(&client->mutex);
     srb = allocate(sizeof(srb_t));
     assert(srb != NULL);
 
@@ -567,6 +611,7 @@ void client_udp_recv_async(client_udp_t *client,
     srb->aux.dst.skt = -1;
 
     srb_operate(srb);
+    pthread_mutex_unlock(&client->mutex);
 }
 
 void client_udp_send_sync(client_udp_t *client,
@@ -580,12 +625,15 @@ void client_udp_send_sync(client_udp_t *client,
     if (!client || !buffer || !buffer_size(buffer))
         return;
 
+    pthread_mutex_lock(&client->mutex);
+
     if (!addr && !port) {
         if (cb)
             (*cb)((endpoint_t){.ep_class = EPC_NONE, .ep_type = EPT_NONE},
                   EADDRNOTAVAIL,
                   0, 0,
                   buffer, ctx);
+        pthread_mutex_unlock(&client->mutex);
         return;
     }
 
@@ -603,6 +651,7 @@ void client_udp_send_sync(client_udp_t *client,
                   EADDRNOTAVAIL,
                   0, 0,
                   buffer, ctx);
+        pthread_mutex_unlock(&client->mutex);
         return;
     }
 
@@ -625,6 +674,7 @@ void client_udp_send_sync(client_udp_t *client,
     srb->aux.dst.skt = client->local.skt;
 
     srb_operate(srb);
+    pthread_mutex_unlock(&client->mutex);
 }
 
 void client_udp_send_async(client_udp_t *client,
@@ -638,12 +688,14 @@ void client_udp_send_async(client_udp_t *client,
     if (!client || !buffer || !buffer_size(buffer))
         return;
 
+    pthread_mutex_lock(&client->mutex);
     if (!addr && !port) {
         if (cb)
             (*cb)((endpoint_t){.ep_class = EPC_NONE, .ep_type = EPT_NONE},
                   EADDRNOTAVAIL,
                   0, 0,
                   buffer, ctx);
+        pthread_mutex_unlock(&client->mutex);
         return;
     }
 
@@ -661,6 +713,7 @@ void client_udp_send_async(client_udp_t *client,
                   EADDRNOTAVAIL,
                   0, 0,
                   buffer, ctx);
+        pthread_mutex_unlock(&client->mutex);
         return;
     }
 
@@ -683,4 +736,5 @@ void client_udp_send_async(client_udp_t *client,
     srb->aux.dst.skt = client->local.skt;
 
     srb_operate(srb);
+    pthread_mutex_unlock(&client->mutex);
 }
