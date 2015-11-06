@@ -51,7 +51,7 @@ void notify_svc(int fd) {
 }
 
 static
-eventfd_t read_svc(int fd) {
+eventfd_t svc_notified(int fd) {
     eventfd_t v;
     eventfd_read(fd, &v);
     return v;
@@ -191,7 +191,7 @@ void io_service_run(io_service_t *iosvc) {
         fd = event.data.fd;
 
         if (fd == event_fd) {
-            read_svc(fd);
+            svc_notified(fd);
 
             if ((list_size(iosvc->lookup_table) == 0) && (iosvc->allow_new == false))
                 *running = false;
