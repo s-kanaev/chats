@@ -24,6 +24,7 @@
 ping_interval секунд. При отсутствии очередного подтверждения клиент считается
 отключившимся.
 Между запусками справочник хранится в БД SQLite 3.x
+
 -- Структура записей в БД.
 Таблица clients:
     id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -72,16 +73,15 @@ ping_interval секунд. При отсутствии очередного п�
 Код команды (hex) - Команда
 00                - CONNECT
 01                - KEYWORD
-02                - REFERENCE?
-03                - REFERENCE
-04                - CHANNEL_SWITCH
-05                - REF_ADD
-06                - REF_DEL
-07                - QUIT
-08                - PING
-09                - ACCEPT
-0a                - REJECT
-0b                - MESSAGE
+02                - REFERENCE?, REFERENCE
+03                - CHANNEL_SWITCH
+04                - REF_ADD
+05                - REF_DEL
+06                - QUIT
+07                - PING
+08                - ACCEPT
+09                - REJECT
+0a                - MESSAGE
 
 Что передается (направление = [к-с = клиент-сервер,
                 с-к = сервер-клиент,
@@ -104,7 +104,7 @@ REFERENCE cl_cnt (nickname ip port)/cl_cnt
 CHANNEL_SWITCH
 
 Порядок сообщений: CONNECT - KEYWORD, REFERENCE?, REFERENCE, CHANNEL_SWITCH
-
+                   CONNECT - REJECT (если такой nickname уже занят)
 -- Второй канал:
 Добавленые строки в справочнике (с-к):
 REF_ADD keyword nickname ip port
