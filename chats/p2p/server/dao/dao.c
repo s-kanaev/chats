@@ -6,6 +6,7 @@
 #include <pthread.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 #include <stdio.h>
 
 static const char *ADD_CLIENT_REQUEST_TPL =
@@ -67,17 +68,16 @@ void dao_remove_client(dao_t *dao, const char *nickname) {
 
     assert(db);
 
-    if(0 > asprintf(&sql, REMOVE_CLIENT_REQUEST_TPL, nickname)) return false;
-    if (!sql) return false;
+    if(0 > asprintf(&sql, REMOVE_CLIENT_REQUEST_TPL, nickname)) return;
+    if (!sql) return;
 
     if (SQLITE_OK != sqlite3_exec(db, sql, NULL, NULL, &err_msg)) {
         free(err_msg);
         free(sql);
-        return false;
+        return;
     }
 
     free(sql);
-    return true;
 }
 
 size_t dao_list_clients(dao_t *dao, struct dao_client **clients_) {
