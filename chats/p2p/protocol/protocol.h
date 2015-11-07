@@ -24,13 +24,14 @@ typedef enum command_enum {
     P2P_CMD_ACCEPT              = 0x08,
     P2P_CMD_REJECT              = 0x09,
     P2P_CMD_MESSAGE             = 0x0a,
-    P2P_MAX
+    P2P_CMD_MAX
 } command_t;
 
 struct p2p_header {
     uint8_t signature[P2P_SIGNATURE_LENGTH];
     uint8_t cmd;
-    uint16_t length;
+    uint64_t length;
+    uint16_t crc;
 } P2P_PACKED;
 
 struct p2p_connect_request {
@@ -89,6 +90,6 @@ struct p2p_reject {
 struct p2p_message {
 } P2P_PACKED;
 
-bool p2p_validate_header(struct p2p_header *header);
+bool p2p_validate_header(const struct p2p_header *header);
 
 #endif /* _P2P_MU_DEFS_H_ */

@@ -7,8 +7,10 @@ CREATE TABLE clients (
     nickname CHAR(24),
     keyword CHAR(40),
     host TEXT,
-    port INTEGER,
+    port TEXT,
     UNIQUE(nickname)
 );
+
+CREATE INDEX clients_index_nickname ON clients (nickname);
 
 COMMIT;

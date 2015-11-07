@@ -1,11 +1,10 @@
 #ifndef _P2P_MU_DAO_H_
 # define _P2P_MU_DAO_H_
 
-# include "list.h"
 # include "protocol.h"
+# include <stddef.h>
 
-struct dao;
-typedef struct dao dao_t;
+typedef void dao_t;
 
 typedef struct dao_client {
     char nickname[P2P_NICKNAME_LENGTH];
@@ -17,7 +16,7 @@ typedef struct dao_client {
 dao_t *dao_init(const char *db_path);
 void dao_deinit(dao_t *dao);
 
-list_t *dao_list_clients(dao_t *dao);
+size_t dao_list_clients(dao_t *dao, struct dao_client **clients);
 bool dao_add_client(dao_t *dao, dao_client_t dao_client);
 void dao_remove_client(dao_t *dao, const char *nickname);
 
