@@ -1,4 +1,5 @@
 #include "dao.h"
+#include "memory.h"
 
 #define _GNU_SOURCE
 #include <sqlite3.h>
@@ -79,25 +80,43 @@ void dao_remove_client(dao_t *dao, const char *nickname) {
     return true;
 }
 
-size_t dao_list_clients(dao_t *dao, struct dao_client **clients) {
-    assert(0);
-    sqlite3_get_table();
-    sqlite3_free_table();
-    /* TODO */
-#warning "Not implemented"
+size_t dao_list_clients(dao_t *dao, struct dao_client **clients_) {
+    int nrows, ncols;
+    sqlite3 *db = dao;
+    char *err_msg = NULL;
+    char **table = NULL;
+    int rc, row, idx;
+    struct dao_client *clients;
+
+    assert(db);
+    rc = sqlite3_get_table(db, LIST_CLIENTS_REQUEST, &table,
+                           &nrows, &ncols, &err_msg);
+
+    if (SQLITE_OK != rc) {
+        free(err_msg);
+        return 0;
+    }
+
+    if (nrows == 0) {
+        sqlite3_free_table(table);
+        return 0;
+    }
+
+    clients = allocate(nrows * sizeof(struct dao_client));
+    if (!clients) {
+        sqlite3_free_table(table);
+        return 0;
+    }
+
+    for (row = 0, idx = ncols; row < nrows; ++row, idx += ncols) {
+        memcpy(clients[row].nickname, table[idx + 1], sizeof(clients[row].nickname));
+        memcpy(clients[row].keyword, table[idx + 2], sizeof(clients[row].keyword));
+        memcpy(clients[row].address, table[idx + 3], sizeof(clients[row].address));
+        memcpy(clients[row].port, table[idx + 4], sizeof(clients[row].port));
+    }
+
+    sqlite3_free_table(table);
+
+    *clients_ = clients;
+    return nrows;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
