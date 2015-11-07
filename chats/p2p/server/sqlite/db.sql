@@ -5,7 +5,7 @@ BEGIN TRANSACTION;
 CREATE TABLE clients (
     id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
     nickname CHAR(24),
-    keyword CHAR(128),
+    keyword CHAR(40),
     host TEXT,
     port INTEGER,
     UNIQUE(nickname)
