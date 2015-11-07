@@ -4,7 +4,7 @@
 # include <stdbool.h>
 # include <stdint.h>
 
-# define P2P_PACKED __attribute__(("packed"))
+# define P2P_PACKED __attribute__((packed))
 
 # define P2P_SIGNATURE_LENGTH 5
 # define P2P_NICKNAME_LENGTH 25

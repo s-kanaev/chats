@@ -1,4 +1,5 @@
 #include "protocol.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -62,6 +63,7 @@ static uint16_t crc_ccitt(const uint8_t *ptr, size_t len) {
 bool p2p_validate_header(const struct p2p_header *header) {
     size_t i;
     uint16_t crc;
+    const struct p2p_reference *r;
 
     if (!header) return false;
 
@@ -84,7 +86,7 @@ bool p2p_validate_header(const struct p2p_header *header) {
                 return false;
             break;
         case P2P_CMD_REFERENCE:
-            const struct p2p_reference *r = header + 1;
+            r = (const struct p2p_reference *)(header + 1);
             if (header->length != 0 &&
                 header->length != sizeof(struct p2p_reference) +
                                   r->clients_count * sizeof(struct p2p_reference_entry))
