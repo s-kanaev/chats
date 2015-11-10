@@ -1,5 +1,5 @@
-#ifndef _COMMON_LIB_QUEUE_H_
-# define _COMMON_LIB_QUEUE_H_
+#ifndef _CHATS_COMMON_LIB_QUEUE_H_
+# define _CHATS_COMMON_LIB_QUEUE_H_
 
 # include "list.h"
 # include <stddef.h>
@@ -13,4 +13,4 @@ void queue_pop(queue_t *q);
 size_t queue_size(queue_t *q);
 void queue_deinit(queue_t *q);
 
-#endif /* _COMMON_LIB_QUEUE_H_ */
+#endif /* _CHATS_COMMON_LIB_QUEUE_H_ */

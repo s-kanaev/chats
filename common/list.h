@@ -1,5 +1,5 @@
-#ifndef _COMMON_LIB_LIST_H_
-# define _COMMON_LIB_LIST_H_
+#ifndef _CHATS_COMMON_LIB_LIST_H_
+# define _CHATS_COMMON_LIB_LIST_H_
 
 # include <stddef.h>
 
@@ -21,4 +21,4 @@ void* list_prev_element(list_t *l, void *el);
 size_t list_size(list_t *l);
 void list_deinit(list_t *l);
 
-#endif /* _COMMON_LIB_LIST_H_ */
+#endif /* _CHATS_COMMON_LIB_LIST_H_ */

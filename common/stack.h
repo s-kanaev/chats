@@ -1,5 +1,5 @@
-#ifndef _COMMON_LIB_STACK_H_
-# define _COMMON_LIB_STACK_H_
+#ifndef _CHATS_COMMON_LIB_STACK_H_
+# define _CHATS_COMMON_LIB_STACK_H_
 
 # include "list.h"
 # include <stddef.h>
@@ -13,4 +13,4 @@ void stack_pop(stack_t *s);
 size_t stack_size(stack_t *s);
 void stack_deinit(stack_t *s);
 
-#endif /* _COMMON_LIB_STACK_H_ */
+#endif /* _CHATS_COMMON_LIB_STACK_H_ */

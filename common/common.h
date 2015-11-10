@@ -1,7 +1,9 @@
-#ifndef _COMMON_ALL_H_
-# define _COMMON_ALL_H_
+#ifndef _CHATS_COMMON_ALL_H_
+# define _CHATS_COMMON_ALL_H_
 
 # include "list.h"
+# include "queue.h"
+# include "stack.h"
 # include "memory.h"
 
-#endif /* _COMMON_ALL_H_ */
+#endif /* _CHATS_COMMON_ALL_H_ */

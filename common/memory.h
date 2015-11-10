@@ -1,5 +1,5 @@
-#ifndef _MEMORY_H_
-# define _MEMORY_H_
+#ifndef _CHATS_COMMON_MEMORY_H_
+# define _CHATS_COMMON_MEMORY_H_
 
 # include <stdbool.h>
 # include <stddef.h>
@@ -24,4 +24,4 @@ size_t buffer_size(buffer_t *b);
 size_t buffer_size_real(buffer_t *b);
 void buffer_deinit(buffer_t *b);
 
-#endif /* _MEMORY_H_ */
+#endif /* _CHATS_COMMON_MEMORY_H_ */
