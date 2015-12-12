@@ -60,69 +60,61 @@ static uint16_t crc_ccitt(const uint8_t *ptr, size_t len) {
     return crc;
 }
 
-bool p2p_validate_header(const struct p2p_header *header) {
+int p2p_validate_header(const struct p2p_header *header) {
     size_t i;
-    uint16_t crc;
-    const struct p2p_reference *r;
+    uint16_t crc_header;
 
     if (!header) return false;
 
     for (i = 0; i < P2P_SIGNATURE_LENGTH; ++i)
-        if (SIGNATURE[i] != header->signature[i]) return false;
+        if (SIGNATURE[i] != header->signature[i]) return header_invalid_signature;
 
-    if (header->cmd >= P2P_CMD_MAX) return false;
+    if (header->cmd >= P2P_CMD_MAX) return header_invalid_cmd;
 
-    crc = crc_ccitt((uint8_t *)(header + 1), header->length);
+    crc_header = crc_ccitt((uint8_t *)(header),
+                           sizeof(struct p2p_header)
+                           - sizeof(struct p2p_header::crc_header)
+                           - sizeof(struct p2p_header::crc_data));
 
-    if (crc != header->crc) return false;
+    if (crc_header != header->crc_header) return header_invalid_crc_header;
 
     switch (header->cmd) {
         case P2P_CMD_CONNECT:
             if (header->length != sizeof(struct p2p_connect_request))
-                return false;
-            break;
-        case P2P_CMD_KEYWORD:
-            if (header->length != sizeof(struct p2p_keyword))
-                return false;
+                return header_invalid_length;
             break;
         case P2P_CMD_REFERENCE:
-            r = (const struct p2p_reference *)(header + 1);
             if (header->length != 0 &&
-                header->length != sizeof(struct p2p_reference) +
-                                  r->clients_count * sizeof(struct p2p_reference_entry))
-                return false;
+                header->length < sizeof(struct p2p_reference))
+                return header_invalid_length;
             break;
         case P2P_CMD_CHANNEL_SWITCH:
             if (header->length != sizeof(struct p2p_channel_switch))
-                return false;
+                return header_invalid_length;
             break;
         case P2P_CMD_REFERENCE_ADD:
             if (header->length != sizeof(struct p2p_reference_add))
-                return false;
+                return header_invalid_length;
             break;
         case P2P_CMD_REFERENCE_REMOVE:
             if (header->length != sizeof(struct p2p_reference_remove))
-                return false;
+                return header_invalid_length;
             break;
         case P2P_CMD_QUIT:
             if (header->length != sizeof(struct p2p_quit))
-                return false;
+                return header_invalid_length;
             break;
         case P2P_CMD_PING:
             if (header->length != sizeof(struct p2p_ping))
-                return false;
+                return header_invalid_length;
             break;
         case P2P_CMD_ACCEPT:
             if (header->length != sizeof(struct p2p_accept))
-                return false;
-            break;
-        case P2P_CMD_REJECT:
-            if (header->length != sizeof(struct p2p_reject))
-                return false;
+                return header_invalid_length;
             break;
         case P2P_CMD_MESSAGE:
             break;
     }
 
-    return true;
+    return header_valid;
 }
