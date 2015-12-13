@@ -105,7 +105,7 @@ REFERENCE cl_cnt (nickname ip port)/cl_cnt
 CHANNEL_SWITCH
 
 Порядок сообщений:
-    1. CONNECT - KEYWORD, REFERENCE, CHANNEL_SWITCH
+    1. CONNECT - REFERENCE - CHANNEL_SWITCH
     2. CONNECT - REJECT (если такой nickname уже занят)
 
 -- Второй канал:
