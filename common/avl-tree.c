@@ -4,91 +4,100 @@
 #include <stdbool.h>
 #include <assert.h>
 
-struct node;
-
-struct avl_tree {
-    size_t data_size;
-    struct node *root;
-};
-
-struct node {
-    struct node *left;              ///< less-than value
-    struct node *right;             ///< more-than value
-    unsigned char height;           ///< balance_factor = height(left) - height(right)
-    long value;
-};
-
-/******************* node functions ****************/
+/****************** node **********************/
 static
-struct node *node_init(long value, avl_tree_t *host) {
-    struct node *n = allocate(sizeof(struct node) + host->data_size);
-    assert(n);
+void node_purge(avl_tree_node_t *node, bool deallocate_data) {
+    if (!node) return;
+    node_purge(node->left, deallocate_data);
+    node_purge(node->right, deallocate_data);
 
-    n->value = value;
-    n->left = n->right = 0;
-    n->height = 1;
+    if (deallocate_data && node->data) deallocate(node->data);
+    deallocate(node);
 }
 
 static
-void node_deinit(struct node *n) {
+avl_tree_node_t *node_init(long long key, void *data, avl_tree_t *host) {
+    avl_tree_node_t *n = allocate(sizeof(avl_tree_node_t));
+    assert(n);
+
+    n->host = host;
+    n->key = key;
+    n->parent = n->left = n->right = NULL;
+    n->height = 1;
+    n->data = data;
+}
+
+static
+void node_deinit(avl_tree_node_t *n) {
     deallocate(n);
 }
 
 static
-unsigned char height(struct node *n) {
+unsigned char node_height(avl_tree_node_t *n) {
     return n ? n->height : 0;
 }
 
 static
-int balance_factor(struct node *n) {
-    return height(n->right) - height(n->left);
+int node_balance_factor(avl_tree_node_t *n) {
+    return node_height(n->right) - node_height(n->left);
 }
 
 static
-void fix_node_height(struct node *n) {
-    unsigned char hl = height(n->left),
-                  hr = height(n->right);
+void node_fix_height(avl_tree_node_t *n) {
+    unsigned char hl = node_height(n->left),
+                  hr = node_height(n->right);
     n->height = (hl > hr ? hl : hr) + 1;
 }
 
-/********************* AVL tree functions *******************/
-/* rotate around 'p' */
+/****************** tree **********************/
 static
-struct node *rotate_right(struct node *p) {
-    struct node *q = p->left;
+avl_tree_node_t *tree_rotate_right(avl_tree_node_t *p) {
+    avl_tree_node_t *q = p->left;
+    avl_tree_node_t *p_parent = p->parent;
+
     p->left = q->right;
     q->right = p;
 
-    fix_node_height(p);
-    fix_node_height(q);
+    if (p->left) p->left->parent = p;
+    q->right->parent = q;
+    q->parent = p_parent;
+
+    node_fix_height(p);
+    node_fix_height(q);
 
     return q;
 }
 
 static
-struct node *rotate_left(struct node *q) {
-    struct node *p = q->right;
+avl_tree_node_t *tree_rotate_left(avl_tree_node_t *q) {
+    avl_tree_node_t *p = q->right;
+    avl_tree_node_t *q_parent;
+
     q->right = p->left;
     p->left = q;
 
-    fix_node_height(q);
-    fix_node_height(p);
+    if (q->right) q->right->parent = q;
+    p->left->parent = p;
+    p->parent = q_parent;
+
+    node_fix_height(q);
+    node_fix_height(p);
 
     return p;
 }
 
 static
-struct node *balance_tree(struct node *p) {
-    fix_node_height(p);
+avl_tree_node_t *tree_balance(avl_tree_node_t *p) {
+    node_fix_height(p);
 
-    switch (balance_factor(p)) {
+    switch (node_balance_factor(p)) {
         case +2:
-            if (balance_factor(p->right) < 0) p->right = rotate_right(p->right);
-            return rotate_left(p);
+            if (node_balance_factor(p->right) < 0) p->right = tree_rotate_right(p->right);
+            return tree_rotate_left(p);
             break;
         case -2:
-            if (balance_factor(p->left) > 0) p->left = rotate_left(p->left);
-            return rotate_right(p);
+            if (node_balance_factor(p->left) > 0) p->left = tree_rotate_left(p->left);
+            return tree_rotate_right(p);
             break;
     }
 
@@ -96,110 +105,153 @@ struct node *balance_tree(struct node *p) {
 }
 
 static
-struct node *insert(struct node *p, long value, avl_tree_t *host) {
-    if (!p) return node_init(value, host);
+avl_tree_node_t *tree_insert(avl_tree_node_t *p, long long key, void *data, avl_tree_t *host) {
+    int cmp_ret;
 
-    if (value < p->value) p->left = insert(p->left, value, host);
-    else /*if (value > p->value)*/ p->right = insert(p->right, value, host);
+    if (!p) return node_init(key, data, host);
 
-    balance_tree(p);
+    if (key < p->key) p->left = tree_insert(p->left, key, data, host);
+    else /*if (value > p->value)*/ p->right = tree_insert(p->right, key, data, host);
+
+    tree_balance(p);
 }
 
 static
-struct node *find_minimum_node(struct node *p) {
-    return p->left ? find_minimum_node(p->left) : p;
-}
-
-static
-struct node *remove_minimum_node(struct node *p) {
+avl_tree_node_t *tree_remove_minimum_node(avl_tree_node_t *p) {
     if (!p->left) return p->right;
-    p->left = remove_minimum_node(p->left);
+    p->left = tree_remove_minimum_node(p->left);
 
-    return balance_tree(p);
+    return tree_balance(p);
 }
 
 static
-struct node *remove_node(struct node *p, long value) {
+avl_tree_node_t *tree_remove_node(avl_tree_node_t *p, long long key,
+                                  void **return_data) {
     if (!p) return NULL;
-    if (value < p->value) p->left = remove_node(p->left, value);
-    else if (value > p->value) p->right = remove_node(p->right, value);
+    if (key < p->key) p->left = tree_remove_node(p->left, key, return_data);
+    else if (key > p->key) p->right = tree_remove_node(p->right, key, return_data);
     else {
-        struct node *q = p->left,
-                    *r = p->right,
-                    *min;
+        avl_tree_node_t *q = p->left,
+                        *r = p->right,
+                        *p_parent = p->parent,
+                        *min;
+        return_data = p->data;
         node_deinit(p);
 
-        if (!r) return q;
-        min = find_minimum_node(r);
-        min->right = find_minimum_node(r);
+        if (!r) {
+            if (q) q->parent = p_parent;
+            return q;
+        }
+
+        min = avl_tree_min(r);
+        min->right = tree_remove_minimum_node(r);
         min->left = q;
 
-        return balance_tree(min);
+        if (min->left) min->left->parent = min;
+        if (min->right) min->right->parent = min;
+        min->parent = p_parent;
+
+        return tree_balance(min);
     }
 
-    return balance_tree(p);
+    return tree_balance(p);
 }
 
 static
-void purge_node_recursive(struct node *te) {
-    if (te->left) purge_node_recursive(te->left);
-    if (te->right) purge_node_recursive(te->right);
-    deallocate(te);
+avl_tree_node_t *tree_find(avl_tree_node_t *p, long long key) {
+    if (!p) return NULL;
+    if (key < p->key) return tree_find(p->left, key);
+    else if (key > p->key) return tree_find(p->right, key);
+    return p;
 }
 
 static
-struct node *find_node(struct node *te, long value) {
-    if (te->value < value) {
-        if (!te->left) return NULL;
-        return find_node(te->left, value);
-    }
-    else if (te->value > value) {
-        if (!te->right) return NULL;
-        return find_node(te->right, value);
-    }
-    return te;
+bool tree_is_left(avl_tree_node_t *p) {
+    return p ? p->parent && p->parent->left == p : false;
 }
 
-/***************** API *************************/
-avl_tree_t *avl_tree_init(size_t data_size) {
+static
+bool tree_is_right(avl_tree_node_t *p) {
+    return p ? p->parent && p->parent->right == p : false;
+}
+
+/****************** API ***********************/
+avl_tree_t *avl_tree_init() {
     avl_tree_t *avl_tree = allocate(sizeof(avl_tree_t));
 
     if (!avl_tree) return NULL;
 
-    avl_tree->data_size = data_size;
     avl_tree->root = NULL;
 
     return avl_tree;
 }
 
-void avl_tree_deinit(avl_tree_t *avl_tree) {
+void avl_tree_deinit(avl_tree_t *avl_tree, bool deallocate_data) {
     if (!avl_tree) return;
-    if (avl_tree->root) purge_node_recursive(avl_tree->root);
+
+    node_purge(avl_tree->root, deallocate_data);
     deallocate(avl_tree);
 }
 
-void *avl_tree_get(avl_tree_t *avl_tree, long int value) {
-    if (!avl_tree) return;
-    if (!avl_tree->root) return NULL;
-
-    return (find_node(avl_tree->root, value) + 1);
+avl_tree_node_t *avl_tree_add(avl_tree_t *avl_tree, long long int key, void *data) {
+    avl_tree->root = tree_insert(avl_tree->root, key, data, avl_tree);
+    return data;
 }
 
-void *avl_tree_add(avl_tree_t *avl_tree, long int value) {
-    if (!avl_tree) return;
-    avl_tree->root = insert(avl_tree->root, value, avl_tree);
-    return (find_node(avl_tree->root, value) + 1);
+void *avl_tree_remove(avl_tree_t *avl_tree, long long int key) {
+    void *data;
+    tree_remove_node(avl_tree->root, key, &data);
+    return data;
 }
 
-bool avl_tree_remove_by_value(avl_tree_t *avl_tree, long int value) {
-    if (!avl_tree) return false;
-    remove_node(avl_tree->root, value);
-    return true;
+avl_tree_node_t *avl_tree_get(avl_tree_t *avl_tree, long long int key) {
+    return tree_find(avl_tree->root, key);
 }
 
-bool avl_tree_remove_by_data(avl_tree_t *avl_tree, void *data) {
-    struct node *n;
-    if (!avl_tree || !data) return false;
-    n = data - sizeof(struct node);
-    return avl_tree_remove_by_value(avl_tree->root, n->value);
+avl_tree_node_t *avl_tree_min(avl_tree_node_t *root) {
+    avl_tree_node_t *left = root->left;
+    while (left) {
+        root = left;
+        left = root->left;
+    }
+    return root;
+}
+
+avl_tree_node_t *avl_tree_max(avl_tree_node_t *root) {
+    avl_tree_node_t *right = root->right;
+    while (right) {
+        root = right;
+        right = root->right;
+    }
+    return right;
+}
+
+avl_tree_node_t *avl_tree_next(avl_tree_node_t *node) {
+    avl_tree_node_t *p;
+    if (!node) return NULL;
+    if (!node->right) {
+        if (tree_is_left(node)) return node->parent;
+
+        p = node->parent;
+        while (p && !tree_is_left(p)) p = p->parent;
+        if (p && !tree_is_right(p)) p = p->parent;
+        return p;
+    }
+
+    return avl_tree_min(node->right);
+}
+
+avl_tree_node_t *avl_tree_prev(avl_tree_node_t *node) {
+    avl_tree_node_t *p;
+    if (!node) return NULL;
+    if (!node->left) {
+        if (tree_is_right(node)) return node->parent;
+
+        p = node->parent;
+        while (p && !tree_is_right(p)) p = p->parent;
+        if (p && !tree_is_left(p)) p = p->parent;
+        return p;
+    }
+
+    return avl_tree_max(node->left);
 }
