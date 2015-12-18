@@ -105,13 +105,18 @@ avl_tree_node_t *tree_balance(avl_tree_node_t *p) {
 }
 
 static
-avl_tree_node_t *tree_insert(avl_tree_node_t *p, long long key, void *data, avl_tree_t *host) {
+avl_tree_node_t *tree_insert(avl_tree_node_t *p,
+                             long long key, void *data,
+                             avl_tree_t *host, avl_tree_node_t **returned) {
     int cmp_ret;
 
-    if (!p) return node_init(key, data, host);
+    if (!p) {
+        *returned = node_init(key, data, host);
+        return *returned;
+    }
 
-    if (key < p->key) p->left = tree_insert(p->left, key, data, host);
-    else /*if (value > p->value)*/ p->right = tree_insert(p->right, key, data, host);
+    if (key < p->key) p->left = tree_insert(p->left, key, data, host, returned);
+    else /*if (value > p->value)*/ p->right = tree_insert(p->right, key, data, host, returned);
 
     tree_balance(p);
 }
@@ -194,8 +199,9 @@ void avl_tree_deinit(avl_tree_t *avl_tree, bool deallocate_data) {
 }
 
 avl_tree_node_t *avl_tree_add(avl_tree_t *avl_tree, long long int key, void *data) {
-    avl_tree->root = tree_insert(avl_tree->root, key, data, avl_tree);
-    return data;
+    avl_tree_node_t *p;
+    avl_tree->root = tree_insert(avl_tree->root, key, data, avl_tree, &p);
+    return p;
 }
 
 void *avl_tree_remove(avl_tree_t *avl_tree, long long int key) {
