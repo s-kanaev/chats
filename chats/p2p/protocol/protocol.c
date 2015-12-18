@@ -5,11 +5,13 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#define member_size(type, member) sizeof(((type *)0)->member)
+
 static const uint8_t SIGNATURE[P2P_SIGNATURE_LENGTH] = {
     'p', '2', 'p', 'm', 'u'
 };
 
-int p2p_validate_header(const struct p2p_header *header) {
+uint16_t p2p_validate_header(const p2p_header_t *header) {
     size_t i;
     uint16_t crc_header;
 
@@ -21,9 +23,9 @@ int p2p_validate_header(const struct p2p_header *header) {
     if (header->cmd >= P2P_CMD_MAX) return p2p_header_invalid_cmd;
 
     crc_header = crc16_ccitt((uint8_t *)(header),
-                             sizeof(struct p2p_header)
-                              - sizeof(struct p2p_header::crc_header)
-                              - sizeof(struct p2p_header::crc_data));
+                             sizeof(p2p_header_t)
+                              - member_size(p2p_header_t, crc_header)
+                              - member_size(p2p_header_t, crc_data));
 
     if (crc_header != header->crc_header) return p2p_header_invalid_crc_header;
 
@@ -67,12 +69,12 @@ int p2p_validate_header(const struct p2p_header *header) {
     return p2p_header_valid;
 }
 
-uint16_t p2p_utilize_packet(const struct p2p_header *header,
+uint16_t p2p_utilize_packet(const p2p_header_t *header,
                             void **handlers, void *ctx) {
     typedef uint16_t (*unified_handler_t)(const void *data, void *ctx);
     uint16_t ret = 0;
     unified_handler_t handler;
-    uint8_t *data;
+    const uint8_t *data;
     uint16_t data_crc;
 
     ret = p2p_validate_header(header);
@@ -80,9 +82,9 @@ uint16_t p2p_utilize_packet(const struct p2p_header *header,
 
     data = (const uint8_t *)(header + 1);
     data_crc = crc16_ccitt((uint8_t *)(header),
-                           sizeof(struct p2p_header)
-                            - sizeof(struct p2p_header::crc_header)
-                            - sizeof(struct p2p_header::crc_data));
+                           sizeof(p2p_header_t)
+                            - member_size(p2p_header_t, crc_header)
+                            - member_size(p2p_header_t, crc_data));
     if (data_crc != header->crc_data) return p2p_pvc_data_invalid_crc;
 
     handler = (unified_handler_t)handlers[header->cmd];
@@ -94,6 +96,6 @@ uint16_t p2p_utilize_packet(const struct p2p_header *header,
     return p2p_pvc_ok;
 }
 
-struct p2p_header *p2p_skip_packet(const struct p2p_header *header) {
+p2p_header_t *p2p_skip_packet(const p2p_header_t *header) {
     return (struct p2p_header *)(((uint8_t *)(header + 1)) + header->length);
 }

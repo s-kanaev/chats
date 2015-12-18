@@ -29,47 +29,58 @@ struct p2p_header {
     uint16_t crc_header;
     uint16_t crc_data;
 } P2P_PACKED;
+typedef struct p2p_header p2p_header_t;
 
 struct p2p_connect_request {
     uint8_t nickname[P2P_NICKNAME_LENGTH];
 } P2P_PACKED;
+typedef struct p2p_connect_request p2p_connect_request_t;
 
 struct p2p_reference {
     uint16_t clients_count;
 } P2P_PACKED;
+typedef struct p2p_reference p2p_reference_t;
 
 struct p2p_reference_entry {
     uint8_t nickname[P2P_NICKNAME_LENGTH];
     uint16_t port;
     uint8_t ip_first_char;
 } P2P_PACKED;
+typedef struct p2p_reference_entry p2p_reference_entry_t;
 
 struct p2p_channel_switch {
 } P2P_PACKED;
+typedef struct p2p_channel_switch p2p_channel_switch_t;
 
 struct p2p_reference_add {
     struct p2p_reference_entry entry;
 } P2P_PACKED;
+typedef struct p2p_reference_add p2p_reference_add_t;
 
 struct p2p_reference_remove {
     uint8_t nickname[P2P_NICKNAME_LENGTH];
 } P2P_PACKED;
+typedef struct p2p_reference_remove p2p_reference_remove_t;
 
 struct p2p_quit {
     uint8_t nickname[P2P_NICKNAME_LENGTH];
 } P2P_PACKED;
+typedef struct p2p_quit p2p_quit_t;
 
 struct p2p_ping {
     uint8_t nickname[P2P_NICKNAME_LENGTH];
 } P2P_PACKED;
+typedef struct p2p_ping p2p_ping_t;
 
 struct p2p_accept {
     uint8_t code;
 } P2P_PACKED;
+typedef struct p2p_accept p2p_accept_t;
 
 struct p2p_message {
     uint8_t msg_first_char;
 } P2P_PACKED;
+typedef struct p2p_message p2p_message_t;
 
 # define PACKET_VALIDATION_CODE(x)      ((x) & 0xff00)
 typedef enum p2p_packet_validation_code_enum {
@@ -92,7 +103,7 @@ typedef enum p2p_header_validation_result_enum {
  * \param header
  * \return \c header_validation_result_t
  */
-uint16_t p2p_validate_header(const struct p2p_header *header);
+uint16_t p2p_validate_header(const p2p_header_t *header);
 
 typedef enum p2p_connect_code_enum {
     p2p_connect_ok              = 0x0000,
@@ -148,7 +159,7 @@ typedef enum p2p_message_code_enum {
  * \return p2p_connect_code_t
  */
 typedef uint16_t
-        (*p2p_connect_handler)(const struct p2p_connect_request *cr,
+        (*p2p_connect_handler)(const p2p_connect_request_t *cr,
                                void *ctx);
 /** Handle reference
  * \param r reference
@@ -156,7 +167,7 @@ typedef uint16_t
  * \return p2p_ref_add_code_t
  */
 typedef uint16_t
-        (*p2p_reference_handler)(const struct p2p_reference *r,
+        (*p2p_reference_handler)(const p2p_reference_t *r,
                                  void *ctx);
 /** Handle reference addition
  * \param re reference entry
@@ -164,7 +175,7 @@ typedef uint16_t
  * \return p2p_ref_add_code_t
  */
 typedef uint16_t
-        (*p2p_reference_add_handler)(const struct p2p_reference_entry *re,
+        (*p2p_reference_add_handler)(const p2p_reference_entry_t *re,
                                      void *ctx);
 /** Handle reference removal
  * \param rr reference to remove
@@ -172,7 +183,7 @@ typedef uint16_t
  * \return p2p_ref_del_code_t
  */
 typedef uint16_t
-        (*p2p_reference_del_handler)(const struct p2p_reference_remove *rr,
+        (*p2p_reference_del_handler)(const p2p_reference_remove_t *rr,
                                      void *ctx);
 /** Handle channel switch request
  * \param cs channel switch request
@@ -180,7 +191,7 @@ typedef uint16_t
  * \return p2p_channel_switch_code_t
  */
 typedef uint16_t
-        (*p2p_channel_switch_handler)(const struct p2p_channel_switch *cs,
+        (*p2p_channel_switch_handler)(const p2p_channel_switch_t *cs,
                                       void *ctx);
 /** Handle quit request
  * \param q quit request
@@ -188,7 +199,7 @@ typedef uint16_t
  * \return p2p_quit_code_t
  */
 typedef uint16_t
-        (*p2p_quit_handler)(const struct p2p_quit *q,
+        (*p2p_quit_handler)(const p2p_quit_t *q,
                             void *ctx);
 /** Handle ping request
  * \param ping ping request
@@ -196,7 +207,7 @@ typedef uint16_t
  * \return p2p_ping_code_t
  */
 typedef uint16_t
-        (*p2p_ping_handler)(const struct p2p_ping *p,
+        (*p2p_ping_handler)(const p2p_ping_t *p,
                             void *ctx);
 /** Handle acception code
  * \param a acception code
@@ -204,7 +215,7 @@ typedef uint16_t
  * \return p2p_accept_code_t
  */
 typedef uint16_t
-        (*p2p_accept_handler)(const struct p2p_accept *a,
+        (*p2p_accept_handler)(const p2p_accept_t *a,
                               void *ctx);
 /** Handle message
  * \param m message
@@ -212,7 +223,7 @@ typedef uint16_t
  * \return p2p_message_code_t
  */
 typedef uint16_t
-        (*p2p_message_handler)(const struct p2p_message *m,
+        (*p2p_message_handler)(const p2p_message_t *m,
                                void *ctx);
 
 /** Utilize packet with \c header as header
@@ -220,7 +231,7 @@ typedef uint16_t
  * \param handlers handlers of different packets
  * \return bitwise OR'ed mask of \c packet_validation_code_t and ... TODO ...
  */
-uint16_t p2p_utilize_packet(const struct p2p_header *header,
+uint16_t p2p_utilize_packet(const p2p_header_t *header,
                             void **handlers, void *ctx);
 
 /** Skip this packet
@@ -229,6 +240,6 @@ uint16_t p2p_utilize_packet(const struct p2p_header *header,
  *
  * Assuming \c header is valid.
  */
-struct p2p_header *p2p_skip_packet(const struct p2p_header *header);
+p2p_header_t *p2p_skip_packet(const p2p_header_t *header);
 
 #endif /* _P2P_MU_PROTOCOL_H_ */
