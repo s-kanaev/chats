@@ -25,8 +25,10 @@ struct avl_tree {
 };
 
 /** initialize empty AVL tree */
-avl_tree_t *avl_tree_init();
+avl_tree_t *avl_tree_allocate();
+void avl_tree_init(avl_tree_t *avl_tree);
 /** remove AVL tree */
+void avl_tree_deallocate(avl_tree_t *avl_tree, bool deallocate_data);
 void avl_tree_deinit(avl_tree_t *avl_tree, bool deallocate_data);
 /** fetch tree node with \c key provided */
 avl_tree_node_t *avl_tree_get(avl_tree_t *avl_tree, long long int key);

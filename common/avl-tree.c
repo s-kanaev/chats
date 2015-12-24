@@ -181,21 +181,28 @@ bool tree_is_right(avl_tree_node_t *p) {
 }
 
 /****************** API ***********************/
-avl_tree_t *avl_tree_init() {
+avl_tree_t *avl_tree_allocate() {
     avl_tree_t *avl_tree = allocate(sizeof(avl_tree_t));
 
-    if (!avl_tree) return NULL;
-
-    avl_tree->root = NULL;
+    avl_tree_init(avl_tree);
 
     return avl_tree;
 }
 
-void avl_tree_deinit(avl_tree_t *avl_tree, bool deallocate_data) {
+void avl_tree_init(avl_tree_t *avl_tree) {
+    if (!avl_tree) return NULL;
+    avl_tree->root = NULL;
+}
+
+void avl_tree_deallocate(avl_tree_t *avl_tree, bool deallocate_data) {
     if (!avl_tree) return;
 
-    node_purge(avl_tree->root, deallocate_data);
+    avl_tree_deinit(avl_tree, deallocate_data);
     deallocate(avl_tree);
+}
+
+void avl_tree_deinit(avl_tree_t *avl_tree, bool deallocate_data) {
+    node_purge(avl_tree->root, deallocate_data);
 }
 
 avl_tree_node_t *avl_tree_add(avl_tree_t *avl_tree, long long int key, void *data) {
