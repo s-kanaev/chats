@@ -11,7 +11,7 @@ void hash_map_init(hash_map_t *hm, hasher_t hasher) {
 
 hash_map_t *hash_map_allocate(hasher_t hasher) {
     hash_map_t *hm = allocate(sizeof(hash_map_t));
-    hash_map_init(hm);
+    hash_map_init(hm, hasher);
     return hm;
 }
 

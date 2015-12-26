@@ -190,7 +190,7 @@ avl_tree_t *avl_tree_allocate() {
 }
 
 void avl_tree_init(avl_tree_t *avl_tree) {
-    if (!avl_tree) return NULL;
+    if (!avl_tree) return;
     avl_tree->root = NULL;
 }
 
