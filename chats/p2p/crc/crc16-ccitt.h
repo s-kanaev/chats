@@ -2,6 +2,7 @@
 # define _P2P_MU_CRC16_CCITT_H_
 
 # include <stddef.h>
+# include <stdint.h>
 
 /*
  * Name  : CRC-16 CCITT

@@ -6,8 +6,10 @@
 
 # define P2P_PACKED __attribute__((packed))
 
-# define P2P_SIGNATURE_LENGTH 5
-# define P2P_NICKNAME_LENGTH 16
+# define P2P_SIGNATURE_LENGTH       5
+# define P2P_NICKNAME_LENGTH        16
+# define P2P_HOST_LENGTH            256
+# define P2P_PORT_LENGTH            6
 
 typedef enum command_enum {
     P2P_CMD_CONNECT             = 0x00,
