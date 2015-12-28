@@ -235,27 +235,29 @@ list_t *dao_list_clients(dao_t *dao) {
 
         /* fetch whole row column by column */
         dc = list_append(list);
+
+        memset(dc->nickname, 0, sizeof(dc->nickname));
+        memset(dc->host, 0, sizeof(dc->host));
+        memset(dc->port, 0, sizeof(dc->port));
+
         dc->id = sqlite3_column_int64(stmt, 0);
         strncpy(
             dc->nickname,
             (const char *)sqlite3_column_text(stmt, 1),
-            sizeof(dc->nickname)
+            sizeof(dc->nickname)-1
         );
-        dc->nickname[sizeof(dc->nickname) - 1] = '\0';
 
         strncpy(
             dc->host,
             (const char *)sqlite3_column_text(stmt, 2),
-            sizeof(dc->host)
+            sizeof(dc->host)-1
         );
-        dc->host[sizeof(dc->host) - 1] = '\0';
 
         strncpy(
             dc->port,
             (const char *)sqlite3_column_text(stmt, 3),
-            sizeof(dc->port)
+            sizeof(dc->port)-1
         );
-        dc->port[sizeof(dc->port) - 1] = '\0';
     } while (true);
 
     if (!(rc == SQLITE_DONE || rc == SQLITE_OK)) {
