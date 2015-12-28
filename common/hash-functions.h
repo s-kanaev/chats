@@ -4,6 +4,8 @@
 # include <stddef.h>
 # include <stdbool.h>
 
-long long pearson_hash(void *data, size_t len);
+long long int pearson_hash(const void *data, size_t len);
+long long int pearson_hash_update(long long int hash,
+                                  const void *data, size_t len);
 
 #endif /* _CHATS_COMMON_HASH_FUNCTIONS_H_ */

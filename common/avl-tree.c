@@ -213,7 +213,7 @@ avl_tree_node_t *avl_tree_add(avl_tree_t *avl_tree, long long int key, void *dat
 
 void *avl_tree_remove(avl_tree_t *avl_tree, long long int key) {
     void *data;
-    tree_remove_node(avl_tree->root, key, &data);
+    avl_tree->root = tree_remove_node(avl_tree->root, key, &data);
     return data;
 }
 

@@ -6,7 +6,7 @@
 
 # include "avl-tree.h"
 
-typedef long long (*hasher_t)(void *data, size_t len);
+typedef long long (*hasher_t)(const void *data, size_t len);
 
 struct hash_map {
     hasher_t hasher;

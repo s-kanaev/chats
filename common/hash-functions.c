@@ -19,14 +19,29 @@ static const unsigned char PEARSON_PERMUTATION_TABLE[256] = {
      43,119,224, 71,122,142, 42,160,104, 48,247,103, 15, 11,138,239  // 16
 };
 
-long long int pearson_hash(void *data, size_t len) {
+long long int pearson_hash(const void *data, size_t len) {
     int i, j;
     unsigned char *x = data;
     unsigned long long hh = 0;
     for (j = 0; j < 8; ++j) {
-        unsigned char h = PEARSON_PERMUTATION_TABLE[(x[0] + j) % 256];
+        unsigned char h = PEARSON_PERMUTATION_TABLE[(x[0] + j) & 0xff];
         for (i = 1; i < len; ++i) h = PEARSON_PERMUTATION_TABLE[h ^ x[i]];
-        hh |= h << (j * 8);
+        hh |= h << (j << 3);
+    }
+
+    return hh;
+}
+
+long long int pearson_hash_update(long long int hash,
+                                  const void *data, size_t len) {
+    int i, j;
+    unsigned char *x = data;
+    unsigned long long hh = hash;
+    unsigned long long mask = 0xff;
+    for (j = 0; j < 8; ++j, mask <<= (j << 3)) {
+        unsigned char h = (hh & mask) >> (j << 3);
+        for (i = 1; i < len; ++i) h = PEARSON_PERMUTATION_TABLE[h ^ x[i]];
+        hh = (hh & (~mask)) | h;
     }
 
     return hh;
