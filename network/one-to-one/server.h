@@ -28,6 +28,13 @@ void oto_server_tcp_recv_sync(oto_server_tcp_t *server, buffer_t *buffer,
                               network_send_recv_cb_t cb, void *ctx);
 void oto_server_tcp_recv_async(oto_server_tcp_t *server, buffer_t *buffer,
                                network_send_recv_cb_t cb, void *ctx);
+void oto_server_tcp_recv_more_async(oto_server_tcp_t *server,
+                                    buffer_t **buffer, size_t how_much,
+                                    network_send_recv_cb_t cb, void *ctx);
+void oto_server_tcp_recv_more_sync(oto_server_tcp_t *server,
+                                   buffer_t **buffer, size_t how_much,
+                                   network_send_recv_cb_t cb, void *ctx);
+
 void oto_server_tcp_local_ep(oto_server_tcp_t *server, endpoint_socket_t *ep);
 void oto_server_tcp_remote_ep(oto_server_tcp_t *server, endpoint_socket_t *ep);
 

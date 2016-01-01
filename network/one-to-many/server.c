@@ -318,8 +318,7 @@ void otm_server_tcp_recv_sync(otm_server_tcp_t *server,
     srb->aux.dst.skt = -1;
 
     srb_operate(srb);
-
-    pthread_mutex_lock(&server->mutex);
+    pthread_mutex_unlock(&server->mutex);
 }
 
 void otm_server_tcp_recv_async(otm_server_tcp_t *server,
@@ -339,6 +338,68 @@ void otm_server_tcp_recv_async(otm_server_tcp_t *server,
 
     srb->buffer = buffer;
     srb->bytes_operated = 0;
+    srb->cb = cb;
+    srb->ctx = ctx;
+    srb->operation.type = EPT_TCP;
+    srb->operation.op = SRB_OP_RECV;
+    srb->iosvc = server->master;
+    srb->aux.src = connection->ep_skt;
+    srb->aux.dst.skt = -1;
+
+    srb_operate(srb);
+    pthread_mutex_unlock(&server->mutex);
+}
+
+void otm_server_tcp_recv_more_sync(otm_server_tcp_t *server,
+                                   const connection_t *connection,
+                                   buffer_t **buffer, size_t how_much,
+                                   network_send_recv_cb_t cb, void *ctx) {
+    srb_t *srb;
+
+    if (!server || !connection || !buffer ||
+        connection->host != server)
+        return;
+
+    pthread_mutex_lock(&server->mutex);
+
+    srb = allocate(sizeof(srb_t));
+    assert(srb != NULL);
+
+    srb->bytes_operated = buffer_size(*buffer);
+    assert(buffer_resize(buffer, srb->bytes_operated + how_much));
+    srb->buffer = *buffer;
+
+    srb->cb = cb;
+    srb->ctx = ctx;
+    srb->operation.type = EPT_TCP;
+    srb->operation.op = SRB_OP_RECV;
+    srb->iosvc = NULL;
+    srb->aux.src = connection->ep_skt;
+    srb->aux.dst.skt = -1;
+
+    srb_operate(srb);
+    pthread_mutex_unlock(&server->mutex);
+}
+
+void otm_server_tcp_recv_more_async(otm_server_tcp_t *server,
+                                    const connection_t *connection,
+                                    buffer_t **buffer, size_t how_much,
+                                    network_send_recv_cb_t cb, void *ctx) {
+    srb_t *srb;
+
+    if (!server || !connection || !buffer ||
+        connection->host != server)
+        return;
+
+    pthread_mutex_lock(&server->mutex);
+
+    srb = allocate(sizeof(srb_t));
+    assert(srb != NULL);
+
+    srb->bytes_operated = buffer_size(*buffer);
+    assert(buffer_resize(buffer, srb->bytes_operated + how_much));
+    srb->buffer = *buffer;
+
     srb->cb = cb;
     srb->ctx = ctx;
     srb->operation.type = EPT_TCP;

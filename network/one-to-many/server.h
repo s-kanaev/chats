@@ -45,6 +45,16 @@ void otm_server_tcp_recv_async(otm_server_tcp_t *server,
                                buffer_t *buffer,
                                network_send_recv_cb_t cb, void *ctx);
 
+void otm_server_tcp_recv_more_async(otm_server_tcp_t *server,
+                                    const connection_t *connection,
+                                    buffer_t **buffer, size_t how_much,
+                                    network_send_recv_cb_t cb, void *ctx);
+
+void otm_server_tcp_recv_more_sync(otm_server_tcp_t *server,
+                                   const connection_t *connection,
+                                   buffer_t **buffer, size_t how_much,
+                                   network_send_recv_cb_t cb, void *ctx);
+
 void otm_server_tcp_local_ep(otm_server_tcp_t *server, endpoint_socket_t *ep);
 
 #endif /* _CHATS_ONE_TO_MANY_H_ */
