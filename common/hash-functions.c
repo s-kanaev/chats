@@ -21,7 +21,7 @@ static const unsigned char PEARSON_PERMUTATION_TABLE[256] = {
 
 long long int pearson_hash(const void *data, size_t len) {
     int i, j;
-    unsigned char *x = data;
+    const unsigned char *x = data;
     unsigned long long hh = 0;
     for (j = 0; j < 8; ++j) {
         unsigned char h = PEARSON_PERMUTATION_TABLE[(x[0] + j) & 0xff];
@@ -35,7 +35,7 @@ long long int pearson_hash(const void *data, size_t len) {
 long long int pearson_hash_update(long long int hash,
                                   const void *data, size_t len) {
     int i, j;
-    unsigned char *x = data;
+    const unsigned char *x = data;
     unsigned long long hh = hash;
     unsigned long long mask = 0xff;
     for (j = 0; j < 8; ++j, mask <<= (j << 3)) {
