@@ -352,7 +352,7 @@ void otm_server_tcp_recv_async(otm_server_tcp_t *server,
 
 void otm_server_tcp_recv_more_sync(otm_server_tcp_t *server,
                                    const connection_t *connection,
-                                   buffer_t **buffer, size_t how_much,
+                                   buffer_t **buffer, size_t more_bytes,
                                    network_send_recv_cb_t cb, void *ctx) {
     srb_t *srb;
 
@@ -366,7 +366,7 @@ void otm_server_tcp_recv_more_sync(otm_server_tcp_t *server,
     assert(srb != NULL);
 
     srb->bytes_operated = buffer_size(*buffer);
-    assert(buffer_resize(buffer, srb->bytes_operated + how_much));
+    assert(buffer_resize(buffer, srb->bytes_operated + more_bytes));
     srb->buffer = *buffer;
 
     srb->cb = cb;
@@ -383,7 +383,7 @@ void otm_server_tcp_recv_more_sync(otm_server_tcp_t *server,
 
 void otm_server_tcp_recv_more_async(otm_server_tcp_t *server,
                                     const connection_t *connection,
-                                    buffer_t **buffer, size_t how_much,
+                                    buffer_t **buffer, size_t more_bytes,
                                     network_send_recv_cb_t cb, void *ctx) {
     srb_t *srb;
 
@@ -397,7 +397,7 @@ void otm_server_tcp_recv_more_async(otm_server_tcp_t *server,
     assert(srb != NULL);
 
     srb->bytes_operated = buffer_size(*buffer);
-    assert(buffer_resize(buffer, srb->bytes_operated + how_much));
+    assert(buffer_resize(buffer, srb->bytes_operated + more_bytes));
     srb->buffer = *buffer;
 
     srb->cb = cb;
