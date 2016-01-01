@@ -33,6 +33,12 @@ void client_tcp_recv_sync(client_tcp_t *client, buffer_t *buffer,
                           network_send_recv_cb_t cb, void *ctx);
 void client_tcp_recv_async(client_tcp_t *client, buffer_t *buffer,
                            network_send_recv_cb_t cb, void *ctx);
+void client_tcp_recv_more_sync(client_tcp_t *client,
+                               buffer_t **buffer, size_t more_bytes,
+                               network_send_recv_cb_t cb, void *ctx);
+void client_tcp_recv_more_async(client_tcp_t *client,
+                                buffer_t **buffer, size_t more_bytes,
+                                network_send_recv_cb_t cb, void *ctx);
 
 client_udp_t *client_udp_init(io_service_t *svc,
                               const char *addr, const char *port,

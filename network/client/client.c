@@ -494,6 +494,63 @@ void client_tcp_send_async(client_tcp_t *client, buffer_t *buffer,
     pthread_mutex_unlock(&client->mutex);
 }
 
+void client_tcp_recv_more_sync(client_tcp_t *client,
+                               buffer_t **buffer, size_t more_bytes,
+                               network_send_recv_cb_t cb, void *ctx) {
+    srb_t *srb;
+
+    if (!client || !buffer)
+        return;
+
+    pthread_mutex_lock(&client->mutex);
+    srb = allocate(sizeof(srb_t));
+    assert(srb != NULL);
+
+    srb->bytes_operated = buffer_size(*buffer);
+    assert(buffer_resize(buffer, srb->bytes_operated + more_bytes));
+    srb->buffer = *buffer;
+
+    srb->cb = cb;
+    srb->ctx = ctx;
+    srb->operation.type = EPT_TCP;
+    srb->operation.op = SRB_OP_RECV;
+    srb->iosvc = NULL;
+    srb->aux.src.skt = -1;
+    srb->aux.dst = client->remote;
+
+    srb_operate(srb);
+    pthread_mutex_unlock(&client->mutex);
+}
+
+void client_tcp_recv_more_async(client_tcp_t *client,
+                                buffer_t **buffer, size_t more_bytes,
+                                network_send_recv_cb_t cb, void *ctx) {
+    srb_t *srb;
+
+    if (!client || !buffer)
+        return;
+
+    pthread_mutex_lock(&client->mutex);
+    srb = allocate(sizeof(srb_t));
+    assert(srb != NULL);
+
+    srb->bytes_operated = buffer_size(*buffer);
+    assert(buffer_resize(buffer, srb->bytes_operated + more_bytes));
+    srb->buffer = *buffer;
+
+    srb->cb = cb;
+    srb->ctx = ctx;
+    srb->operation.type = EPT_TCP;
+    srb->operation.op = SRB_OP_RECV;
+    srb->iosvc = client->master;
+    srb->aux.src.skt = -1;
+    srb->aux.dst = client->remote;
+
+    srb_operate(srb);
+    pthread_mutex_unlock(&client->mutex);
+}
+
+
 /********************** UDP client **********************************/
 client_udp_t *client_udp_init(io_service_t *svc,
                               const char *addr, const char *port,
