@@ -10,6 +10,8 @@
 # include <sys/types.h>
 # include <sys/socket.h>
 
+# define NETWORK_WARN_UNUSED __attribute__((warn_unused_result))
+
 /****************** forward declarations *************/
 struct connection;
 typedef struct connection connection_t;
@@ -41,11 +43,22 @@ typedef void (*network_send_recv_cb_t)(endpoint_t ep,
                                        buffer_t *buffer,
                                        void *ctx);
 
+struct network_result {
+    endpoint_t ep;
+    int err;
+    size_t bytes_operated;
+    size_t has_more_bytes;
+    buffer_t *buffer;
+    void *ctx;
+};
+typedef struct network_result network_result_t;
+
 typedef void (*srb_cb_t)(srb_t *srb, endpoint_t ep, int err, void *ctx);
 
 /******************* enumerations ********************/
 typedef enum network_send_recv_custom_error_enum {
-    NSRCE_BUFFER_TOO_SMALL = -1
+    NSRCE_BUFFER_TOO_SMALL = -1,
+    NSRCE_INVALID_ARGUMENTS = -2
 } network_send_recv_custom_error_t;
 
 typedef enum srb_operation_enum {
@@ -94,5 +107,8 @@ struct send_recv_buffer {
 
 /****************** functions prototypes **********************/
 void srb_operate(srb_t *srb);
+
+network_result_t
+srb_operate_no_cb(srb_t *srb) NETWORK_WARN_UNUSED;
 
 #endif /* _CHATS_NETWORK_COMMON_H_ */

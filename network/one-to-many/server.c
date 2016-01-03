@@ -233,15 +233,19 @@ void otm_server_tcp_local_ep(otm_server_tcp_t *server, endpoint_socket_t *ep) {
     pthread_mutex_unlock(&server->mutex);
 }
 
-void otm_server_tcp_send_sync(otm_server_tcp_t *server,
-                              const connection_t *connection,
-                              buffer_t *buffer,
-                              network_send_recv_cb_t cb, void *ctx) {
+network_result_t
+otm_server_tcp_send_sync(otm_server_tcp_t *server,
+                         const connection_t *connection,
+                         buffer_t *buffer, size_t buffer_start) {
     srb_t *srb;
+    network_result_t ret = {
+        .buffer = buffer,
+        .err = NSRCE_INVALID_ARGUMENTS
+    };
 
-    if (!server || !connection || !buffer ||
-        !buffer_size(buffer) || connection->host != server)
-        return;
+    if (!server || !connection || !buffer || connection->host != server ||
+        (buffer_start >= buffer_size(buffer)))
+        return ret;
 
     pthread_mutex_lock(&server->mutex);
 
@@ -249,27 +253,29 @@ void otm_server_tcp_send_sync(otm_server_tcp_t *server,
     assert(srb != NULL);
 
     srb->buffer = buffer;
-    srb->bytes_operated = 0;
-    srb->cb = cb;
-    srb->ctx = ctx;
+    srb->bytes_operated = buffer_start;
+    srb->cb = NULL;
+    srb->ctx = NULL;
     srb->operation.type = EPT_TCP;
     srb->operation.op = SRB_OP_SEND;
     srb->iosvc = NULL;
     srb->aux.src.skt = -1;
     srb->aux.dst = connection->ep_skt;
 
-    srb_operate(srb);
+    ret = srb_operate_no_cb(srb);
     pthread_mutex_unlock(&server->mutex);
+
+    return ret;
 }
 
 void otm_server_tcp_send_async(otm_server_tcp_t *server,
                                const connection_t *connection,
-                               buffer_t *buffer,
+                               buffer_t *buffer, size_t buffer_start,
                                network_send_recv_cb_t cb, void *ctx) {
     srb_t *srb;
 
-    if (!server || !connection || !buffer ||
-        !buffer_size(buffer) || connection->host != server)
+    if (!server || !connection || !buffer || connection->host != server ||
+        (buffer_start >= buffer_size(buffer)))
         return;
 
     pthread_mutex_lock(&server->mutex);
@@ -278,7 +284,7 @@ void otm_server_tcp_send_async(otm_server_tcp_t *server,
     assert(srb != NULL);
 
     srb->buffer = buffer;
-    srb->bytes_operated = 0;
+    srb->bytes_operated = buffer_start;
     srb->cb = cb;
     srb->ctx = ctx;
     srb->operation.type = EPT_TCP;
@@ -292,15 +298,19 @@ void otm_server_tcp_send_async(otm_server_tcp_t *server,
     pthread_mutex_unlock(&server->mutex);
 }
 
-void otm_server_tcp_recv_sync(otm_server_tcp_t *server,
-                              const connection_t *connection,
-                              buffer_t *buffer,
-                              network_send_recv_cb_t cb, void *ctx) {
+network_result_t
+otm_server_tcp_recv_sync(otm_server_tcp_t *server,
+                         const connection_t *connection,
+                         buffer_t *buffer, size_t buffer_start) {
     srb_t *srb;
+    network_result_t ret = {
+        .buffer = buffer,
+        .err = NSRCE_INVALID_ARGUMENTS
+    };
 
-    if (!server || !connection || !buffer ||
-        !buffer_size(buffer) || connection->host != server)
-        return;
+    if (!server || !connection || !buffer || connection->host != server ||
+        (buffer_start >= buffer_size(buffer)))
+        return ret;
 
     pthread_mutex_lock(&server->mutex);
 
@@ -309,26 +319,28 @@ void otm_server_tcp_recv_sync(otm_server_tcp_t *server,
 
     srb->buffer = buffer;
     srb->bytes_operated = 0;
-    srb->cb = cb;
-    srb->ctx = ctx;
+    srb->cb = NULL;
+    srb->ctx = NULL;
     srb->operation.type = EPT_TCP;
     srb->operation.op = SRB_OP_RECV;
     srb->iosvc = NULL;
     srb->aux.src = connection->ep_skt;
     srb->aux.dst.skt = -1;
 
-    srb_operate(srb);
+    ret = srb_operate_no_cb(srb);
     pthread_mutex_unlock(&server->mutex);
+
+    return ret;
 }
 
 void otm_server_tcp_recv_async(otm_server_tcp_t *server,
                                const connection_t *connection,
-                               buffer_t *buffer,
+                               buffer_t *buffer, size_t buffer_start,
                                network_send_recv_cb_t cb, void *ctx) {
     srb_t *srb;
 
-    if (!server || !connection || !buffer ||
-        !buffer_size(buffer) || connection->host != server)
+    if (!server || !connection || !buffer || connection->host != server ||
+        (buffer_start >= buffer_size(buffer)))
         return;
 
     pthread_mutex_lock(&server->mutex);
@@ -337,69 +349,7 @@ void otm_server_tcp_recv_async(otm_server_tcp_t *server,
     assert(srb != NULL);
 
     srb->buffer = buffer;
-    srb->bytes_operated = 0;
-    srb->cb = cb;
-    srb->ctx = ctx;
-    srb->operation.type = EPT_TCP;
-    srb->operation.op = SRB_OP_RECV;
-    srb->iosvc = server->master;
-    srb->aux.src = connection->ep_skt;
-    srb->aux.dst.skt = -1;
-
-    srb_operate(srb);
-    pthread_mutex_unlock(&server->mutex);
-}
-
-void otm_server_tcp_recv_more_sync(otm_server_tcp_t *server,
-                                   const connection_t *connection,
-                                   buffer_t **buffer, size_t more_bytes,
-                                   network_send_recv_cb_t cb, void *ctx) {
-    srb_t *srb;
-
-    if (!server || !connection || !buffer ||
-        connection->host != server)
-        return;
-
-    pthread_mutex_lock(&server->mutex);
-
-    srb = allocate(sizeof(srb_t));
-    assert(srb != NULL);
-
-    srb->bytes_operated = buffer_size(*buffer);
-    assert(buffer_resize(buffer, srb->bytes_operated + more_bytes));
-    srb->buffer = *buffer;
-
-    srb->cb = cb;
-    srb->ctx = ctx;
-    srb->operation.type = EPT_TCP;
-    srb->operation.op = SRB_OP_RECV;
-    srb->iosvc = NULL;
-    srb->aux.src = connection->ep_skt;
-    srb->aux.dst.skt = -1;
-
-    srb_operate(srb);
-    pthread_mutex_unlock(&server->mutex);
-}
-
-void otm_server_tcp_recv_more_async(otm_server_tcp_t *server,
-                                    const connection_t *connection,
-                                    buffer_t **buffer, size_t more_bytes,
-                                    network_send_recv_cb_t cb, void *ctx) {
-    srb_t *srb;
-
-    if (!server || !connection || !buffer ||
-        connection->host != server)
-        return;
-
-    pthread_mutex_lock(&server->mutex);
-
-    srb = allocate(sizeof(srb_t));
-    assert(srb != NULL);
-
-    srb->bytes_operated = buffer_size(*buffer);
-    assert(buffer_resize(buffer, srb->bytes_operated + more_bytes));
-    srb->buffer = *buffer;
-
+    srb->bytes_operated = buffer_start;
     srb->cb = cb;
     srb->ctx = ctx;
     srb->operation.type = EPT_TCP;

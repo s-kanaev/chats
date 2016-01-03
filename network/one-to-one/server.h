@@ -6,6 +6,8 @@
 # include "io-service.h"
 # include "memory.h"
 
+# define OTO_WARN_UNUSED __attribute__((warn_unused_result))
+
 /* oto stands for one-to-one */
 
 struct oto_server_tcp;
@@ -20,20 +22,22 @@ void oto_server_tcp_listen_sync(oto_server_tcp_t *server,
 void oto_server_tcp_listen_async(oto_server_tcp_t *server,
                                  tcp_connection_cb_t cb, void *ctx);
 void oto_server_tcp_disconnect(oto_server_tcp_t *server);
-void oto_server_tcp_send_sync(oto_server_tcp_t *server, buffer_t *buffer,
-                              network_send_recv_cb_t cb, void *ctx);
-void oto_server_tcp_send_async(oto_server_tcp_t *server, buffer_t *buffer,
+
+network_result_t
+oto_server_tcp_send_sync(oto_server_tcp_t *server,
+                         buffer_t *buffer, size_t buffer_start) OTO_WARN_UNUSED;
+
+void oto_server_tcp_send_async(oto_server_tcp_t *server,
+                               buffer_t *buffer, size_t buffer_start,
                                network_send_recv_cb_t cb, void *ctx);
-void oto_server_tcp_recv_sync(oto_server_tcp_t *server, buffer_t *buffer,
-                              network_send_recv_cb_t cb, void *ctx);
-void oto_server_tcp_recv_async(oto_server_tcp_t *server, buffer_t *buffer,
+
+network_result_t
+oto_server_tcp_recv_sync(oto_server_tcp_t *server,
+                         buffer_t *buffer, size_t buffer_start) OTO_WARN_UNUSED;
+
+void oto_server_tcp_recv_async(oto_server_tcp_t *server,
+                               buffer_t *buffer, size_t buffer_start,
                                network_send_recv_cb_t cb, void *ctx);
-void oto_server_tcp_recv_more_async(oto_server_tcp_t *server,
-                                    buffer_t **buffer, size_t more_bytes,
-                                    network_send_recv_cb_t cb, void *ctx);
-void oto_server_tcp_recv_more_sync(oto_server_tcp_t *server,
-                                   buffer_t **buffer, size_t more_bytes,
-                                   network_send_recv_cb_t cb, void *ctx);
 
 void oto_server_tcp_local_ep(oto_server_tcp_t *server, endpoint_socket_t *ep);
 void oto_server_tcp_remote_ep(oto_server_tcp_t *server, endpoint_socket_t *ep);

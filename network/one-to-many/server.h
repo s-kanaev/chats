@@ -6,6 +6,7 @@
 # include "io-service.h"
 # include "memory.h"
 
+# define OTM_WARN_UNUSED __attribute__((warn_unused_result))
 # define DEFAULT_CONNECTION_BACKLOG 50
 
 /* otm stands for one-to-many */
@@ -25,35 +26,26 @@ void otm_server_tcp_listen_sync(otm_server_tcp_t *server,
 void otm_server_tcp_listen_async(otm_server_tcp_t *server,
                                  tcp_connection_cb_t cb, void *ctx);
 
-void otm_server_tcp_send_sync(otm_server_tcp_t *server,
-                              const connection_t *connection,
-                              buffer_t *buffer,
-                              network_send_recv_cb_t cb, void *ctx);
+network_result_t
+otm_server_tcp_send_sync(otm_server_tcp_t *server,
+                         const connection_t *connection,
+                         buffer_t *buffer, size_t buffer_start) OTM_WARN_UNUSED;
 
 void otm_server_tcp_send_async(otm_server_tcp_t *server,
                                const connection_t *connection,
-                               buffer_t *buffer,
+                               buffer_t *buffer, size_t buffer_start,
                                network_send_recv_cb_t cb, void *ctx);
 
-void otm_server_tcp_recv_sync(otm_server_tcp_t *server,
-                              const connection_t *connection,
-                              buffer_t *buffer,
-                              network_send_recv_cb_t cb, void *ctx);
+network_result_t
+otm_server_tcp_recv_sync(otm_server_tcp_t *server,
+                         const connection_t *connection,
+                         buffer_t *buffer, size_t buffer_start) OTM_WARN_UNUSED;
 
 void otm_server_tcp_recv_async(otm_server_tcp_t *server,
                                const connection_t *connection,
-                               buffer_t *buffer,
+                               buffer_t *buffer, size_t buffer_start,
                                network_send_recv_cb_t cb, void *ctx);
 
-void otm_server_tcp_recv_more_async(otm_server_tcp_t *server,
-                                    const connection_t *connection,
-                                    buffer_t **buffer, size_t more_bytes,
-                                    network_send_recv_cb_t cb, void *ctx);
-
-void otm_server_tcp_recv_more_sync(otm_server_tcp_t *server,
-                                   const connection_t *connection,
-                                   buffer_t **buffer, size_t more_bytes,
-                                   network_send_recv_cb_t cb, void *ctx);
 
 void otm_server_tcp_local_ep(otm_server_tcp_t *server, endpoint_socket_t *ep);
 

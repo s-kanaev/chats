@@ -37,7 +37,7 @@ void data_sent(endpoint_t ep, int err, size_t bytes, size_t more_bytes, buffer_t
 
     assert(err == 0);
 
-    client_udp_recv_async(context->client, buffer, data_received, ctx);
+    client_udp_recv_async(context->client, buffer, 0, data_received, ctx);
 }
 
 int main(int argc, char *argv[]) {
@@ -78,7 +78,7 @@ int main(int argc, char *argv[]) {
 
     //oto_server_tcp_listen_async(server, connection_accepted, &context);
 
-    client_udp_send_async(context.client, context.buffer, "127.0.0.1", argv[2], data_sent, &context);
+    client_udp_send_async(context.client, context.buffer, 0, "127.0.0.1", argv[2], data_sent, &context);
     io_service_run(iosvc);
     /*io_service_stop(iosvc, true);*/
 

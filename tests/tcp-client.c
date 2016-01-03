@@ -36,7 +36,7 @@ void data_sent(endpoint_t ep, int err, size_t bytes, size_t more_bytes, buffer_t
 
     assert(err == 0);
 
-    client_tcp_recv_async(context->client, buffer, data_received, ctx);
+    client_tcp_recv_async(context->client, buffer, 0, data_received, ctx);
 }
 
 void connected(const endpoint_t *ep, int err,
@@ -57,7 +57,7 @@ void connected(const endpoint_t *ep, int err,
             (unsigned)ep->ep.ip4.addr[3],
             (unsigned)ep->ep.ip4.port);
 
-    client_tcp_send_async(context->client, context->buffer, data_sent, ctx);
+    client_tcp_send_async(context->client, context->buffer, 0, data_sent, ctx);
 }
 
 int main(void) {

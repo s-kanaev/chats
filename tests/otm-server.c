@@ -27,7 +27,7 @@ bool connection_accepted(const connection_t *conn, int err, void *ctx) {
             (unsigned)ep->ep.ip4.addr[3],
             (unsigned)ep->ep.ip4.port);
 
-    otm_server_tcp_recv_async(context->server, conn, context->buffer, data_received, (void *)conn);
+    otm_server_tcp_recv_async(context->server, conn, context->buffer, 0, data_received, (void *)conn);
 
     otm_server_tcp_listen_async(context->server, connection_accepted, ctx);
     return true;
@@ -53,7 +53,7 @@ void data_received(endpoint_t ep, int err, size_t bytes, size_t more_bytes, buff
         data[buffer_size(buffer) - i - 1] = tmp;
     }
 
-    otm_server_tcp_send_async(conn->host, conn, buffer, data_sent, ctx);
+    otm_server_tcp_send_async(conn->host, conn, buffer, 0, data_sent, ctx);
 }
 
 void data_sent(endpoint_t ep, int err, size_t bytes, size_t more_bytes, buffer_t *buffer, void *ctx) {

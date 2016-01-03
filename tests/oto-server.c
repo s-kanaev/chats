@@ -27,7 +27,7 @@ bool connection_accepted(const connection_t *conn, int err, void *ctx) {
             (unsigned)ep->ep.ip4.addr[3],
             (unsigned)ep->ep.ip4.port);
 
-    oto_server_tcp_recv_async(context->server, context->buffer, data_received, ctx);
+    oto_server_tcp_recv_async(context->server, context->buffer, 0, data_received, ctx);
 
     return true;
 }
@@ -44,7 +44,7 @@ void data_received(endpoint_t ep, int err, size_t bytes, size_t more_bytes, buff
     fprintf(stdout, "Data received (sending it back) (size: %llu): %.*s\n",
             buffer_size(buffer), buffer_size(buffer), buffer_data(buffer));
 
-    oto_server_tcp_send_async(context->server, buffer, data_sent, ctx);
+    oto_server_tcp_send_async(context->server, buffer, 0, data_sent, ctx);
 }
 
 void data_sent(endpoint_t ep, int err, size_t bytes, size_t more_bytes, buffer_t *buffer, void *ctx) {
