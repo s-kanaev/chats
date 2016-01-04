@@ -3,13 +3,18 @@
 
 # include <stdbool.h>
 # include <stdint.h>
+# include <netinet/in.h>
 
 # define P2P_PACKED __attribute__((packed))
 
 # define P2P_SIGNATURE_LENGTH       5
 # define P2P_NICKNAME_LENGTH        16
-# define P2P_HOST_LENGTH            256
+# define P2P_HOST_LENGTH            ( \
+ (INET_ADDRSTRLEN > INET6_ADDRSTRLEN ? INET_ADDRSTRLEN : INET6_ADDRSTRLEN) \
+ + 1)
 # define P2P_PORT_LENGTH            6
+
+const uint8_t P2P_SIGNATURE[P2P_SIGNATURE_LENGTH];
 
 typedef enum command_enum {
     P2P_CMD_CONNECT             = 0x00,
@@ -45,8 +50,8 @@ typedef struct p2p_reference p2p_reference_t;
 
 struct p2p_reference_entry {
     uint8_t nickname[P2P_NICKNAME_LENGTH];
-    uint16_t port;
-    uint8_t ip_first_char;
+    uint8_t port[P2P_PORT_LENGTH];
+    uint8_t ip[P2P_HOST_LENGTH];
 } P2P_PACKED;
 typedef struct p2p_reference_entry p2p_reference_entry_t;
 
@@ -106,6 +111,8 @@ typedef enum p2p_header_validation_result_enum {
  * \return \c header_validation_result_t
  */
 uint16_t p2p_validate_header(const p2p_header_t *header);
+
+uint16_t p2p_check_data_crc(const p2p_header_t *header);
 
 typedef enum p2p_connect_code_enum {
     p2p_connect_ok              = 0x0000,
@@ -243,5 +250,8 @@ uint16_t p2p_utilize_packet(const p2p_header_t *header,
  * Assuming \c header is valid.
  */
 p2p_header_t *p2p_skip_packet(const p2p_header_t *header);
+
+void p2p_put_header_crc(p2p_header_t *header);
+void p2p_put_data_crc(p2p_header_t *header);
 
 #endif /* _P2P_MU_PROTOCOL_H_ */
