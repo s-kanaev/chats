@@ -191,6 +191,7 @@ avl_tree_t *avl_tree_allocate() {
 
 void avl_tree_init(avl_tree_t *avl_tree) {
     if (!avl_tree) return;
+    avl_tree->count = 0;
     avl_tree->root = NULL;
 }
 
@@ -208,12 +209,14 @@ void avl_tree_deinit(avl_tree_t *avl_tree, bool deallocate_data) {
 avl_tree_node_t *avl_tree_add(avl_tree_t *avl_tree, long long int key, void *data) {
     avl_tree_node_t *p;
     avl_tree->root = tree_insert(avl_tree->root, key, data, avl_tree, &p);
+    ++avl_tree->count;
     return p;
 }
 
 void *avl_tree_remove(avl_tree_t *avl_tree, long long int key) {
     void *data;
     avl_tree->root = tree_remove_node(avl_tree->root, key, &data);
+    --avl_tree->count;
     return data;
 }
 
@@ -267,4 +270,8 @@ avl_tree_node_t *avl_tree_prev(avl_tree_node_t *node) {
     }
 
     return avl_tree_max(node->left);
+}
+
+size_t avl_tree_count(const avl_tree_t *avl_tree) {
+    return avl_tree ? avl_tree->count : 0;
 }

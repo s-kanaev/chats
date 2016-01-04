@@ -76,3 +76,7 @@ void *hash_map_remove_by_key(hash_map_t *hm, void *key_data, size_t key_len) {
         hm->hasher(key_data, key_len)
     );
 }
+
+size_t hash_map_count(const hash_map_t *hm) {
+    return hm ? avl_tree_count(hm->tree) : 0;
+}

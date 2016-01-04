@@ -33,4 +33,6 @@ void *hash_map_remove_by_key(hash_map_t *hm,
 void *hash_map_remove_by_hash(hash_map_t *hm,
                               long long hash);
 
+size_t hash_map_count(const hash_map_t *hm);
+
 #endif /* _CHATS_COMMON_HASH_MAP_H_ */

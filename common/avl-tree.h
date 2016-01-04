@@ -21,6 +21,7 @@ struct avl_tree_node {
 };
 
 struct avl_tree {
+    size_t count;
     avl_tree_node_t *root;
 };
 
@@ -44,5 +45,7 @@ avl_tree_node_t *avl_tree_prev(avl_tree_node_t *node);
 avl_tree_node_t *avl_tree_min(avl_tree_node_t *root);
 /** fetch maximum node */
 avl_tree_node_t *avl_tree_max(avl_tree_node_t *root);
+
+size_t avl_tree_count(const avl_tree_t *avl_tree);
 
 #endif /* _CHATS_COMMON_LIB_AVL_TREE_H_ */
