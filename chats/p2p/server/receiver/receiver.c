@@ -1,6 +1,8 @@
 #include "receiver.h"
 #include "protocol.h"
 
+#include "watchdog/watchdog.h"
+
 #include "memory.h"
 #include "thread-pool.h"
 #include "io-service.h"
@@ -15,6 +17,7 @@
 #include "connection/connection.h"
 
 #include <stddef.h>
+#include <string.h>
 #include <stdbool.h>
 #include <pthread.h>
 #include <assert.h>
@@ -25,9 +28,9 @@
 #define UNUSED __attribute__ ((unused))
 
 #define MIN_CH2_RCV_BUF_SIZE (sizeof(p2p_header_t) + \
-                              (sizeof(p2p_ping) > sizeof(p2p_quit) \
-                                ? sizeof(p2p_ping) \
-                                : sizeof(p2p_quit)))
+                              (sizeof(p2p_ping_t) > sizeof(p2p_quit_t) \
+                                ? sizeof(p2p_ping_t) \
+                                : sizeof(p2p_quit_t)))
 #define DEFAULT_CH2_RCV_BUF_SIZE (MIN_CH2_RCV_BUF_SIZE > 1024 \
                                   ? MIN_CH2_RCV_BUF_SIZE : 1024)
 
@@ -126,7 +129,7 @@ bool ch1_talker_init(cd_t *ctx) {
     header = buffer_data(ctx->ch1_rcv_buffer);
     if (p2p_check_data_crc(header)) return false;
 
-    cr = (const p2p_connect_request_t *)(header + 1);
+    cr = (p2p_connect_request_t *)(header + 1);
     cr->nickname[sizeof(cr->nickname) - 1] = '\0';
     memcpy(ctx->nickname, cr->nickname, sizeof(ctx->nickname));
 
@@ -154,7 +157,7 @@ bool ch1_talker_send_reference(cd_t *ctx) {
 
     pthread_mutex_lock(&RECEIVER.mtx);
 
-    ref_size = hash_map_count(&RECEIVER.clients_by_nickname)
+    ref_size = hash_map_count(&RECEIVER.clients_by_nickname);
 
     assert(buffer_resize(
         &ctx->ch1_rcv_buffer,
@@ -171,8 +174,8 @@ bool ch1_talker_send_reference(cd_t *ctx) {
     reference = (p2p_reference_t *)(header + 1);
     reference->clients_count = ref_size;
 
-    ref_entry = (p2p_reference_entry_t)(reference + 1);
-    client_node = avl_tree_min(&RECEIVER.clients_by_nickname.tree.root);
+    ref_entry = (p2p_reference_entry_t *)(reference + 1);
+    client_node = avl_tree_min(RECEIVER.clients_by_nickname.tree.root);
     for (; ref_size; --ref_size, ++ref_entry, client_node = avl_tree_next(client_node)) {
         cd_t *other_client = client_node->data;
         memcpy(ref_entry->nickname, other_client->nickname, sizeof(ref_entry->nickname));
@@ -385,6 +388,14 @@ void ch1_talker(void *_ctx) {
     /* send reference changes to others */
     if (!ch1_talker_notify_others(ctx, client_by_nickname)) return;
 
+    watchdog_register_client(
+        ctx->nickname, strlen(ctx->nickname),
+        ctx->host, strlen(ctx->host),
+        ctx->port, strlen(ctx->port)
+    );
+
+    buffer_deinit(ctx->ch1_rcv_buffer);
+
     return;
 }
 
@@ -449,17 +460,61 @@ bool ch1_connection_acceptor(const connection_t *ep, int err, void *ctx) {
 /*************** channel 2 functions ******************/
 /* permanent channel-2 data awaiting thread */
 static
+bool ch2_reader_receive(buffer_t **buffer, size_t count) {
+    network_result_t net_ret;
+    const p2p_header_t *header;
+    size_t old_size = buffer_size(*buffer);
+    assert(buffer_resize(
+        buffer,
+        old_size + count
+    ));
+
+    net_ret = client_udp_recv_sync(
+        RECEIVER.receiver_ch2,
+        *buffer, old_size
+    );
+
+    assert(net_ret.err != NSRCE_INVALID_ARGUMENTS);
+
+    if (net_ret.err) return false;
+
+    header = buffer_data(*buffer);
+
+    if (p2p_check_data_crc(header)) return false;
+
+    return true;
+}
+
+static
 void ch2_reader(void *_ctx UNUSED) {
     buffer_t *buffer;
+    p2p_header_t *header;
+    p2p_ping_t *ping;
+    p2p_quit_t *quit;
+    size_t buffer_total_size;
     network_result_t net_ret;
+    long long int nickname_hash;
+    size_t nickname_length;
+    cd_t *disconnected_client;
 
     if (!RECEIVER.running) return;
     assert(RECEIVER.initialized);
 
-    buffer = buffer_init(sizeof(p2p_header_t));
+    buffer_total_size = sizeof(p2p_header_t);
+    buffer_total_size += sizeof(p2p_ping_t) < sizeof(p2p_quit_t)
+                          ? sizeof(p2p_quit_t)
+                          : sizeof(p2p_ping_t);
+    buffer = buffer_init(buffer_total_size, buffer_policy_no_shrink);
     assert(buffer);
 
-    assert(0);
+    assert(buffer_resize(
+        &buffer,
+        sizeof(p2p_header_t)
+    ));
+
+    header = buffer_data(buffer);
+    ping = (p2p_ping_t *)(header + 1);
+    quit = (p2p_quit_t *)(header + 1);
 
     pthread_mutex_lock(&RECEIVER.mtx);
     while (RECEIVER.running) {
@@ -475,12 +530,61 @@ void ch2_reader(void *_ctx UNUSED) {
             buffer, 0
         );
 
-        if (net_ret.err) {
+        assert(net_ret.err != NSRCE_INVALID_ARGUMENTS);
+
+        if (net_ret.err != NSRCE_BUFFER_TOO_SMALL) {
             pthread_mutex_lock(&RECEIVER.mtx);
             continue;
         }
 
-        /* TODO */
+        header = buffer_data(buffer);
+        if (p2p_validate_header(header)) {
+            pthread_mutex_lock(&RECEIVER.mtx);
+            continue;
+        }
+
+        switch (header->cmd) {
+            case P2P_CMD_PING:
+                if (!ch2_reader_receive(&buffer, sizeof(p2p_ping_t))) {
+                    pthread_mutex_lock(&RECEIVER.mtx);
+                    continue;
+                }
+                ping->nickname[sizeof(ping->nickname) - 1] = '\0';
+                watchdog_continue_registration(
+                    ping->nickname, strlen(ping->nickname)
+                );
+                break;
+            case P2P_CMD_QUIT:
+                if (!ch2_reader_receive(&buffer, sizeof(p2p_quit_t))) {
+                    pthread_mutex_lock(&RECEIVER.mtx);
+                    continue;
+                }
+                quit->nickname[sizeof(ping->nickname) - 1] = '\0';
+                nickname_length = strlen(quit->nickname);
+                watchdog_deregister_client(
+                    quit->nickname, nickname_length
+                );
+
+                nickname_hash = pearson_hash(quit->nickname, nickname_length);
+
+                pthread_mutex_lock(&RECEIVER.mtx);
+
+                /* remove client by nickname */
+                disconnected_client = hash_map_remove_by_hash(
+                    &RECEIVER.clients_by_nickname,
+                    nickname_hash
+                );
+
+                list_remove_element(
+                    RECEIVER.clients_list,
+                    disconnected_client
+                );
+
+                pthread_mutex_unlock(&RECEIVER.mtx);
+                break;
+            default:
+                break;
+        }
 
         pthread_mutex_lock(&RECEIVER.mtx);
     }
