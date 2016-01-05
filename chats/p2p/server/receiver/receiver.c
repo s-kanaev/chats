@@ -80,6 +80,82 @@ static struct {
 };
 
 /**************************** internal function *****************************/
+/**
+ * Notify other clients about this clients state
+ * \param ctx this clients description
+ * \param connected whether the client is connected or disconnected
+ * \return \c true until error
+ */
+static
+bool talker_notify_others(cd_t *ctx,
+                          bool connected) {
+    avl_tree_node_t *client_node;
+    network_result_t net_ret;
+    p2p_header_t *header;
+    p2p_reference_add_t *ref_add;
+    p2p_reference_remove_t *ref_remove;
+
+    switch (connected) {
+        case true:
+            assert(buffer_resize(
+                &ctx->ch1_rcv_buffer,
+                sizeof(p2p_header_t) + sizeof(p2p_reference_add_t)
+            ));
+            header = buffer_data(ctx->ch1_rcv_buffer);
+            ref_add = (p2p_reference_add_t *)(header + 1);
+            memcpy(header->signature, P2P_SIGNATURE, sizeof(header->signature));
+            header->cmd = P2P_CMD_REFERENCE_ADD;
+            header->length = sizeof(p2p_reference_add_t);
+
+            memcpy(ref_add->entry.nickname, ctx->nickname, sizeof(ref_add->entry.nickname));
+            memcpy(ref_add->entry.port, ctx->port, sizeof(ref_add->entry.port));
+            memcpy(ref_add->entry.ip, ctx->host, sizeof(ref_add->entry.ip));
+            break;
+        case false:
+            assert(buffer_resize(
+                &ctx->ch1_rcv_buffer,
+                sizeof(p2p_header_t) + sizeof(p2p_reference_remove_t)
+            ));
+            header = buffer_data(ctx->ch1_rcv_buffer);
+            ref_remove = (p2p_reference_remove_t *)(header + 1);
+            memcpy(header->signature, P2P_SIGNATURE, sizeof(header->signature));
+            header->cmd = P2P_CMD_REFERENCE_REMOVE;
+            header->length = sizeof(p2p_reference_add_t);
+
+            memcpy(ref_remove->nickname, ctx->nickname, sizeof(ref_remove->nickname));
+            break;
+    }
+
+    p2p_put_header_crc(header);
+    p2p_put_data_crc(header);
+
+    pthread_mutex_lock(&RECEIVER.mtx);
+
+    client_node = avl_tree_min(RECEIVER.clients_by_nickname.tree.root);
+    for (; client_node && client_node->data != ctx; client_node = avl_tree_next(client_node)) {
+        cd_t *other_client = client_node->data;
+
+        net_ret = client_udp_send_sync(
+            RECEIVER.receiver_ch2,
+            ctx->ch1_rcv_buffer, 0,
+            other_client->host, other_client->port
+        );
+    }
+
+    client_node = avl_tree_next(client_node);
+    for (; client_node; client_node = avl_tree_next(client_node)) {
+        cd_t *other_client = client_node->data;
+
+        net_ret = client_udp_send_sync(
+            RECEIVER.receiver_ch2,
+            ctx->ch1_rcv_buffer, 0,
+            other_client->host, other_client->port
+        );
+    }
+
+    pthread_mutex_unlock(&RECEIVER.mtx);
+}
+
 /*************** channel 1 functions ******************/
 /**
  * ctx->cs = CS_NONE
@@ -253,61 +329,13 @@ bool ch1_talker_channel_switcher(cd_t *ctx) {
 /**
  * ctx->cs = CS_CHANNEL_SWITCHED
  * \param ctx client description
- * \param self_node reference to the client in by nockname hash map
+ * \param self_node reference to the client in by nickname hash map
  * \return \c true until error
  * \post buffer containing reference add command
  */
 static
 bool ch1_talker_notify_others(cd_t *ctx, avl_tree_node_t *self_node) {
-    avl_tree_node_t *client_node;
-    network_result_t net_ret;
-    p2p_header_t *header;
-    p2p_reference_add_t *ref_entry;
-
-    assert(buffer_resize(
-        &ctx->ch1_rcv_buffer,
-        sizeof(p2p_header_t) + sizeof(p2p_reference_add_t)
-    ));
-
-    header = buffer_data(ctx->ch1_rcv_buffer);
-    ref_entry = (p2p_reference_add_t *)(header + 1);
-
-    memcpy(header->signature, P2P_SIGNATURE, sizeof(header->signature));
-    header->cmd = P2P_CMD_REFERENCE_ADD;
-    header->length = sizeof(p2p_reference_add_t);
-
-    memcpy(ref_entry->entry.nickname, ctx->nickname, sizeof(ref_entry->entry.nickname));
-    memcpy(ref_entry->entry.port, ctx->port, sizeof(ref_entry->entry.port));
-    memcpy(ref_entry->entry.ip, ctx->host, sizeof(ref_entry->entry.ip));
-
-    p2p_put_header_crc(header);
-    p2p_put_data_crc(header);
-
-    pthread_mutex_lock(&RECEIVER.mtx);
-
-    client_node = avl_tree_min(RECEIVER.clients_by_nickname.tree.root);
-    for (; client_node && client_node != self_node; client_node = avl_tree_next(client_node)) {
-        cd_t *other_client = client_node->data;
-
-        net_ret = client_udp_send_sync(
-            RECEIVER.receiver_ch2,
-            ctx->ch1_rcv_buffer, 0,
-            other_client->host, other_client->port
-        );
-    }
-
-    client_node = avl_tree_next(client_node);
-    for (; client_node; client_node = avl_tree_next(client_node)) {
-        cd_t *other_client = client_node->data;
-
-        net_ret = client_udp_send_sync(
-            RECEIVER.receiver_ch2,
-            ctx->ch1_rcv_buffer, 0,
-            other_client->host, other_client->port
-        );
-    }
-
-    pthread_mutex_unlock(&RECEIVER.mtx);
+    return talker_notify_others(ctx, true);
 }
 
 static
@@ -658,11 +686,14 @@ void receiver_disconnect_client(void *ctx) {
     cd_t *descr = ctx;
     pthread_mutex_lock(&RECEIVER.mtx);
 
+    talker_notify_others(descr, false);
+
     /* remove client by nickname */
     hash_map_remove_by_hash(
         &RECEIVER.clients_by_nickname,
         descr->nickname_node->key
     );
+
     descr->nickname_node = NULL;
 
     list_remove_element(
