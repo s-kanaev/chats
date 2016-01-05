@@ -486,7 +486,7 @@ bool ch2_reader_receive(buffer_t **buffer, size_t count) {
 }
 
 static
-void ch2_reader(void *_ctx UNUSED) {
+void *ch2_reader(void *_ctx UNUSED) {
     buffer_t *buffer;
     p2p_header_t *header;
     p2p_ping_t *ping;
@@ -591,6 +591,8 @@ void ch2_reader(void *_ctx UNUSED) {
     pthread_mutex_unlock(&RECEIVER.mtx);
 
     buffer_deinit(buffer);
+
+    return NULL;
 }
 
 /***************************** API functions ********************************/
@@ -627,7 +629,10 @@ void receiver_deinit(void) {
     assert(RECEIVER.initialized);
 
     if (RECEIVER.running) {
-        /* TODO interrupt ch2_reader thread */
+        void *p;
+        pthread_cancel(RECEIVER.ch2_thread_id);
+        /*pthread_join(RECEIVER.ch2_thread_id, &p);*/
+        pthread_attr_destroy(&RECEIVER.ch2_thread_attr);
     }
 
     pthread_mutex_lock(&RECEIVER.mtx);
@@ -650,6 +655,9 @@ void receiver_disconnect_client(void *descr) {
 
 void receiver_run(void) {
     assert(RECEIVER.initialized);
+
+    assert(pthread_mutex_lock(&RECEIVER.mtx));
+
     RECEIVER.running = true;
 
     /* do smth else ? */
@@ -659,8 +667,20 @@ void receiver_run(void) {
         NULL
     );
 
-    /* TODO post ch2_reader on another thread */
-    thread_pool_post_job(RECEIVER.tp, ch2_reader, NULL);
+    assert(0 ==
+        pthread_attr_init(&RECEIVER.ch2_thread_attr));
+    assert(0 ==
+        pthread_attr_setdetachstate(
+            &RECEIVER.ch2_thread_attr, PTHREAD_CREATE_JOINABLE
+    ));
 
-    /* TODO set accept, read, write, callbacks */
+    assert(
+        0 ==
+        pthread_create(
+            &RECEIVER.ch2_thread_id,
+            &RECEIVER.ch2_thread_attr,
+            ch2_reader, NULL
+    ));
+
+    assert(pthread_mutex_unlock(&RECEIVER.mtx));
 }
