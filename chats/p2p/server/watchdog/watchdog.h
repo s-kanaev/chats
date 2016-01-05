@@ -15,7 +15,8 @@ void watchdog_run(void);
 /* for use by receivers */
 void watchdog_register_client(const char *nickname, size_t nickname_len,
                               const char *host, size_t host_len,
-                              const char *port, size_t port_len);
+                              const char *port, size_t port_len,
+                              void *ctx);
 void watchdog_deregister_client(const char *nickname, size_t nickname_len);
 void watchdog_continue_registration(const char *nickname, size_t nickname_len);
 

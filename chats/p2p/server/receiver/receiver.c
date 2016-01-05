@@ -43,6 +43,7 @@ enum client_state {
 
 typedef struct client_descr {
     const connection_t *connection;
+    avl_tree_node_t *nickname_node;
     buffer_t *ch1_rcv_buffer;
     enum client_state cs;
     char host[P2P_HOST_LENGTH];
@@ -383,6 +384,9 @@ void ch1_talker(void *_ctx) {
         nickname_hash,
         ctx
     );
+    ctx->nickname_node = client_by_nickname;
+    otm_server_tcp_disconnect(RECEIVER.server_ch1, ctx->connection);
+    ctx->connection = NULL;
     pthread_mutex_unlock(&RECEIVER.mtx);
 
     /* send reference changes to others */
@@ -391,7 +395,8 @@ void ch1_talker(void *_ctx) {
     watchdog_register_client(
         ctx->nickname, strlen(ctx->nickname),
         ctx->host, strlen(ctx->host),
-        ctx->port, strlen(ctx->port)
+        ctx->port, strlen(ctx->port),
+        ctx
     );
 
     buffer_deinit(ctx->ch1_rcv_buffer);
@@ -417,7 +422,7 @@ bool ch1_connection_acceptor(const connection_t *ep, int err, void *ctx) {
 
     client_descr->cs = CS_NONE;
     client_descr->connection = ep;
-    client_descr->host;
+    client_descr->nickname_node = NULL;
 
     /* fill in host/port of client_descr */
     assert(
@@ -649,8 +654,23 @@ void receiver_deinit(void) {
     RECEIVER.initialized = false;
 }
 
-void receiver_disconnect_client(void *descr) {
-    /* TODO */
+void receiver_disconnect_client(void *ctx) {
+    cd_t *descr = ctx;
+    pthread_mutex_lock(&RECEIVER.mtx);
+
+    /* remove client by nickname */
+    hash_map_remove_by_hash(
+        &RECEIVER.clients_by_nickname,
+        descr->nickname_node->key
+    );
+    descr->nickname_node = NULL;
+
+    list_remove_element(
+        RECEIVER.clients_list,
+        descr
+    );
+
+    pthread_mutex_unlock(&RECEIVER.mtx);
 }
 
 void receiver_run(void) {
